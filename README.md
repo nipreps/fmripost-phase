@@ -2,8 +2,7 @@
 
 Preprocessing of fMRI phase data using BIDS derivatives from magnitude preprocessing.
 
-
-Outputs:
+## Expected outputs
 
 ```
 sub-<label>/[ses-<label>/]
