@@ -47,10 +47,10 @@ class ODRFit(SimpleInterface):
         mag_data = mag_img.get_fdata()
 
         phase_img = nb.load(self.inputs.phase)
-        ph = phase_img.get_fdata()
+        phase_data = phase_img.get_fdata()
 
         mask_img = nb.load(self.inputs.mask)
-        mask = mask_img.get_fdata()
+        mask_data = mask_img.get_fdata()
 
         # Set TR and filter threshold
         TR = float(self.inputs.TR)
@@ -86,47 +86,47 @@ class ODRFit(SimpleInterface):
         noise_mask = np.fft.fftshift(1.0 * (abs(freqs) > noise_lb))
 
         # Estimates standard deviations of magnitude and phase
-        for x in range(mag_data.shape[0]):
-            temp = mag_data[x, :, :, :]
-            stdm[x, :, :] = np.std(np.fft.ifft(np.fft.fft(temp) * noise_mask), -1)
-            temp = ph[x, :, :, :]
-            stdp[x, :, :] = np.std(np.fft.ifft(np.fft.fft(temp) * noise_mask), -1)
+        for i_x in range(mag_data.shape[0]):
+            temp = mag_data[i_x, :, :, :]
+            stdm[i_x, :, :] = np.std(np.fft.ifft(np.fft.fft(temp) * noise_mask), -1)
+            temp = phase_data[i_x, :, :, :]
+            stdp[i_x, :, :] = np.std(np.fft.ifft(np.fft.fft(temp) * noise_mask), -1)
 
         # Reshape variables into a single column
         # Reshapes variable intro 2D matrix of voxels x timepoints
         mag_data = np.reshape(mag_data, (-1, nt))
-        ph = np.reshape(ph, (-1, nt))
+        phase_data = np.reshape(phase_data, (-1, nt))
         # Reshapes variable intro array of length = number of voxels
         stdm = np.reshape(stdm, (-1,))
         stdp = np.reshape(stdp, (-1,))
-        mask = np.reshape(mask, (-1,))
+        mask_data = np.reshape(mask_data, (-1,))
 
-        for x in range(mag_data.shape[0]):
-            if mask[x]:
-                design = ph[x, :]
-                ests = [stdm[x] / stdp[x], 1.0]
-                mydata = odr.RealData(design, mag_data[x, :], sx=stdp[x], sy=stdm[x])
+        for i_x in range(mag_data.shape[0]):
+            if mask_data[i_x]:
+                design = phase_data[i_x, :]
+                ests = [stdm[i_x] / stdp[i_x], 1.0]
+                mydata = odr.RealData(design, mag_data[i_x, :], sx=stdp[i_x], sy=stdm[i_x])
                 odr_obj = odr.ODR(mydata, linearfit, beta0=ests, maxit=600)
                 res = odr_obj.run()
                 est = res.y
 
-                r2[x] = 1.0 - (
-                    np.sum((mag_data[x, :] - est) ** 2) / np.sum((mag_data[x, :]) ** 2)
+                r2[i_x] = 1.0 - (
+                    np.sum((mag_data[i_x, :] - est) ** 2) / np.sum((mag_data[i_x, :]) ** 2)
                 )
 
                 # take out scaled phase signal and re-mean may need correction
-                sim[x, :] = ph[x, :] * res.beta[0]
-                filt[x, :] = mag_data[x, :] - est
+                sim[i_x, :] = phase_data[i_x, :] * res.beta[0]
+                filt[i_x, :] = mag_data[i_x, :] - est
                 # estimate residuals
-                residuals[x, :] = np.sign(mag_data[x, :] - est) * (
+                residuals[i_x, :] = np.sign(mag_data[i_x, :] - est) * (
                     np.sum(res.delta**2, axis=0) + res.eps**2
                 )
-                # res.delta --> Array of estimated errors in input variables (same shape as x)
-                delta[x, :] = np.sum(res.delta, axis=0)
+                # res.delta --> Array of estimated errors in input variables (same shape as i_x)
+                delta[i_x, :] = np.sum(res.delta, axis=0)
                 # res.eps --> Array of estimated errors in response variables (same shape as y)
-                eps[x, :] = res.eps
-                xshift[x, :] = np.sum(res.xplus, axis=0)
-                estimate[x, :] = res.y  # res.xplus --> Array of x + delta
+                eps[i_x, :] = res.eps
+                xshift[i_x, :] = np.sum(res.xplus, axis=0)
+                estimate[i_x, :] = res.y  # res.xplus --> Array of x + delta
 
         # Save outputs
         self._results["sim"] = fname_presuffix(
