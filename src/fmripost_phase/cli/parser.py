@@ -199,7 +199,7 @@ def _build_parser(**kwargs):
         help=(
             'Search PATH(s) for pre-computed derivatives. '
             'These may be provided as named folders '
-            '(e.g., `--derivatives smriprep=/path/to/smriprep`).'
+            '(e.g., `--derivatives fmriprep=/path/to/fmriprep`).'
         ),
     )
     g_bids.add_argument(
