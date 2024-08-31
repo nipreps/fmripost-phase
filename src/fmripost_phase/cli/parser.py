@@ -188,8 +188,15 @@ def _build_parser(**kwargs):
         type=int,
         help=(
             'Exact or maximum number of GIFT components to estimate '
-            '(positive = exact, negative = maximum)'
+            '(positive = exact, negative = maximum). '
+            'GIFT is only applied if this is set to something other than 0.'
         ),
+    )
+    g_phase.add_argument(
+        '--retroicor',
+        action='store_true',
+        default=False,
+        help='Apply RETROICOR to complex-valued data.',
     )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')

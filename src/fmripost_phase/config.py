@@ -549,6 +549,8 @@ class workflow(_Config):
     """Calculate and output phase jump file."""
     regression_method = None
     """Phase regression method to apply, if any."""
+    retroicor = None
+    """Apply RETROICOR denoising."""
     unwrap_phase = None
     """Write out unwrapped phase data."""
     ignore = None
