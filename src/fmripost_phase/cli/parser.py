@@ -151,6 +151,47 @@ def _build_parser(**kwargs):
         ),
     )
 
+    g_phase = parser.add_argument_group('Options for processing phase data')
+    g_phase.add_argument(
+        '--unwrap',
+        dest='unwrap_phase',
+        action='store_true',
+        default=False,
+        help='Write out unwrapped phase data.',
+    )
+    g_phase.add_argument(
+        '--jump',
+        dest='jump',
+        action='store_true',
+        default=False,
+        help='Calculate and output phase jump file.',
+    )
+    g_phase.add_argument(
+        '--jolt',
+        dest='jolt',
+        action='store_true',
+        default=False,
+        help='Calculate and output phase jolt file.',
+    )
+    g_phase.add_argument(
+        '--regression-method',
+        action='store',
+        choices=['odr', 'ols', 'none'],
+        default='none',
+        dest='regression_method',
+        help='Phase regression method to apply, if any.',
+    )
+    g_phase.add_argument(
+        '--gift-dimensionality',
+        action='store',
+        default=0,
+        type=int,
+        help=(
+            'Exact or maximum number of GIFT components to estimate '
+            '(positive = exact, negative = maximum)'
+        ),
+    )
+
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
     g_bids.add_argument(
         '--skip_bids_validation',
@@ -341,30 +382,6 @@ https://fmriprep.readthedocs.io/en/%s/spaces.html"""
             "Maximum number of sessions aggregated in one subject's visual report. "
             'If exceeded, visual reports are split by session.'
         ),
-    )
-
-    g_phase = parser.add_argument_group('Options for processing phase data')
-    g_phase.add_argument(
-        '--jump',
-        dest='jump',
-        action='store_true',
-        default=False,
-        help='Calculate and output phase jump file.',
-    )
-    g_phase.add_argument(
-        '--jolt',
-        dest='jolt',
-        action='store_true',
-        default=False,
-        help='Calculate and output phase jolt file.',
-    )
-    g_phase.add_argument(
-        '--regression-method',
-        action='store',
-        choices=['odr', 'ols', 'none'],
-        default='none',
-        dest='regression_method',
-        help='Phase regression method to apply, if any.',
     )
 
     g_carbon = parser.add_argument_group('Options for carbon usage tracking')

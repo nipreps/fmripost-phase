@@ -1,0 +1,30 @@
+{
+  "title": "fMRIPost-Phase: a robust postprocessing pipeline for functional MRI phase data",
+  "description": "<p>fMRIPost-Phase is a robust and easy-to-use pipeline for postprocessing phase data from preprocessed fMRI data organized in BIDS format.</p>",
+  "contributors": [
+  ],
+  "creators": [
+    {
+      "affiliation": "Department of Psychology, Florida International University",
+      "name": "Salo, Taylor",
+      "orcid": "0000-0001-9813-3167"
+    }
+  ],
+  "keywords": [
+    "neuroimaging",
+    "workflow",
+    "pipeline",
+    "preprocessing",
+    "fMRI",
+    "BIDS"
+  ],
+  "license": "Apache-2.0",
+  "related_identifiers": [
+    {
+      "identifier": "https://fmripost-phase.readthedocs.io",
+      "relation": "documents",
+      "scheme": "url"
+    }
+  ],
+  "upload_type": "software"
+}

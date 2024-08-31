@@ -1,0 +1,6 @@
+package: fmripost-phase
+title: Anatomical report for participant '{subject}' - fMRIPost-Phase
+sections:
+- name: Summary
+  reportlets:
+  - bids: {datatype: figures, desc: summary, suffix: bold}
