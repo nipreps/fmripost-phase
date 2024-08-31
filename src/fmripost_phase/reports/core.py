@@ -20,6 +20,7 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
+
 from pathlib import Path
 
 from nireports.assembler.report import Report

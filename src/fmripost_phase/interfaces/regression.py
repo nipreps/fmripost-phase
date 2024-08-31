@@ -11,24 +11,24 @@ from nipype.interfaces.base import (
 
 
 class _ODRFitInputSpec(BaseInterfaceInputSpec):
-    phase = File(exists=True, mandatory=True, desc="phase image")
-    magnitude = File(exists=True, mandatory=True, desc="magnitude image")
-    mask = File(exists=True, mandatory=True, desc="mask")
-    TR = traits.Float(mandatory=True, desc="Repetition time of scan")
-    noise_filter = traits.Float(mandatory=True, desc="high-pass filter threshold")
+    phase = File(exists=True, mandatory=True, desc='phase image')
+    magnitude = File(exists=True, mandatory=True, desc='magnitude image')
+    mask = File(exists=True, mandatory=True, desc='mask')
+    TR = traits.Float(mandatory=True, desc='Repetition time of scan')
+    noise_filter = traits.Float(mandatory=True, desc='high-pass filter threshold')
 
 
 class _ODRFitOutputSpec(TraitedSpec):
-    sim = File(exists=True, mandatory=True, desc="")
-    filt = File(exists=True, mandatory=True, desc="")
-    residuals = File(exists=True, mandatory=True, desc="")
-    xres = File(exists=True, mandatory=True, desc="")
-    yres = File(exists=True, mandatory=True, desc="")
-    xplus = File(exists=True, mandatory=True, desc="")
-    stdp = File(exists=True, mandatory=True, desc="")
-    stdm = File(exists=True, mandatory=True, desc="")
-    r2 = File(exists=True, mandatory=True, desc="")
-    estimate = File(exists=True, mandatory=True, desc="")
+    sim = File(exists=True, mandatory=True, desc='')
+    filt = File(exists=True, mandatory=True, desc='')
+    residuals = File(exists=True, mandatory=True, desc='')
+    xres = File(exists=True, mandatory=True, desc='')
+    yres = File(exists=True, mandatory=True, desc='')
+    xplus = File(exists=True, mandatory=True, desc='')
+    stdp = File(exists=True, mandatory=True, desc='')
+    stdm = File(exists=True, mandatory=True, desc='')
+    r2 = File(exists=True, mandatory=True, desc='')
+    estimate = File(exists=True, mandatory=True, desc='')
 
 
 class ODRFit(SimpleInterface):
@@ -129,9 +129,9 @@ class ODRFit(SimpleInterface):
                 estimate[i_x, :] = res.y  # res.xplus --> Array of x + delta
 
         # Save outputs
-        self._results["sim"] = fname_presuffix(
+        self._results['sim'] = fname_presuffix(
             self.inputs.phase,
-            prefix="sim_",
+            prefix='sim_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -140,11 +140,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img1, self._results["sim"])
+        nb.save(out_img1, self._results['sim'])
 
-        self._results["filt"] = fname_presuffix(
+        self._results['filt'] = fname_presuffix(
             self.inputs.phase,
-            prefix="filt_",
+            prefix='filt_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -153,11 +153,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img2, self._results["filt"])
+        nb.save(out_img2, self._results['filt'])
 
-        self._results["residuals"] = fname_presuffix(
+        self._results['residuals'] = fname_presuffix(
             self.inputs.phase,
-            prefix="residuals_",
+            prefix='residuals_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -166,11 +166,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img3, self._results["residuals"])
+        nb.save(out_img3, self._results['residuals'])
 
-        self._results["xres"] = fname_presuffix(
+        self._results['xres'] = fname_presuffix(
             self.inputs.phase,
-            prefix="xres_",
+            prefix='xres_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -179,11 +179,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img4, self._results["xres"])
+        nb.save(out_img4, self._results['xres'])
 
-        self._results["yres"] = fname_presuffix(
+        self._results['yres'] = fname_presuffix(
             self.inputs.phase,
-            prefix="yres_",
+            prefix='yres_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -192,11 +192,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img5, self._results["yres"])
+        nb.save(out_img5, self._results['yres'])
 
-        self._results["xplus"] = fname_presuffix(
+        self._results['xplus'] = fname_presuffix(
             self.inputs.phase,
-            prefix="xplus_",
+            prefix='xplus_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -205,12 +205,12 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img6, self._results["xplus"])
+        nb.save(out_img6, self._results['xplus'])
 
         # plot fit statistic info
-        self._results["stdp"] = fname_presuffix(
+        self._results['stdp'] = fname_presuffix(
             self.inputs.phase,
-            prefix="stdp_",
+            prefix='stdp_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -219,11 +219,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img7, self._results["stdp"])
+        nb.save(out_img7, self._results['stdp'])
 
-        self._results["stdm"] = fname_presuffix(
+        self._results['stdm'] = fname_presuffix(
             self.inputs.phase,
-            prefix="stdm_",
+            prefix='stdm_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -232,11 +232,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img8, self._results["stdm"])
+        nb.save(out_img8, self._results['stdm'])
 
-        self._results["r2"] = fname_presuffix(
+        self._results['r2'] = fname_presuffix(
             self.inputs.phase,
-            prefix="r2_",
+            prefix='r2_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -245,11 +245,11 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img9, self._results["r2"])
+        nb.save(out_img9, self._results['r2'])
 
-        self._results["estimate"] = fname_presuffix(
+        self._results['estimate'] = fname_presuffix(
             self.inputs.phase,
-            prefix="estimate_",
+            prefix='estimate_',
             newpath=runtime.cwd,
             use_ext=True,
         )
@@ -258,7 +258,7 @@ class ODRFit(SimpleInterface):
             affine=mask_img.affine,
             header=mask_img.get_header(),
         )
-        nb.save(out_img10, self._results["estimate"])
+        nb.save(out_img10, self._results['estimate'])
 
         return runtime
 
