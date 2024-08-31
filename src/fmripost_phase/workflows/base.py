@@ -139,7 +139,6 @@ def init_single_subject_wf(subject_id: str):
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
-    from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
     from fmripost_phase.interfaces.reportlets import AboutSummary, SubjectSummary
     from fmripost_phase.utils.bids import collect_derivatives
 
@@ -289,6 +288,8 @@ def init_single_run_wf(bold_file):
     from niworkflows.interfaces.header import ValidateImage
     from templateflow.api import get as get_template
 
+    from fmripost_phase.interfaces.bids import DerivativesDataSink
+    from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
@@ -399,16 +400,6 @@ Raw BOLD series were resampled to MNI152NLin6Asym:res-2, for ICA-Phase classific
         ])  # fmt:skip
     else:
         workflow.connect([(validate_bold, stc_buffer, [('out_file', 'bold_file')])])
-
-    mni6_mask = str(
-        get_template(
-            'MNI152NLin6Asym',
-            resolution=2,
-            desc='brain',
-            suffix='mask',
-            extension=['.nii', '.nii.gz'],
-        )
-    )
 
     mag_boldref_wf = init_bold_volumetric_resample_wf(
         metadata=bold_metadata,
