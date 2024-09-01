@@ -279,6 +279,7 @@ Functional data postprocessing
 
 def init_single_run_wf(bold_file):
     """Set up a single-run workflow for fMRIPost-Phase."""
+    from fmriprep.utils.bids import dismiss_echo
     from fmriprep.utils.misc import estimate_bold_mem_usage
     from fmriprep.workflows.bold.apply import init_bold_volumetric_resample_wf
     from fmriprep.workflows.bold.stc import init_bold_stc_wf
@@ -291,6 +292,7 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
+    from fmripost_phase.workflows.confounds import init_bold_confs_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
     spaces = config.workflow.spaces
@@ -481,7 +483,30 @@ Raw BOLD series were resampled to MNI152NLin6Asym:res-2, for ICA-Phase classific
         pass
 
     # Compute confounds, including HighCor
-    pass
+    bold_confounds_wf = init_bold_confs_wf(
+        mem_gb=mem_gb['largemem'],
+        metadata=bold_metadata,
+        regressors_all_comps=config.workflow.regressors_all_comps,
+        name='bold_confounds_wf',
+    )
+    # TODO: Set 'phase', 'bold_mask', and 'skip_vols'
+
+    ds_confounds = pe.Node(
+        DerivativesDataSink(
+            desc='confounds',
+            suffix='timeseries',
+            dismiss_entities=dismiss_echo(),
+        ),
+        name='ds_confounds',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+    workflow.connect([
+        (bold_confounds_wf, ds_confounds, [
+            ('outputnode.confounds_file', 'in_file'),
+            ('outputnode.confounds_metadata', 'meta_dict'),
+        ]),
+    ])  # fmt:skip
 
     # Fill-in datasinks seen so far
     for node in workflow.list_node_names():

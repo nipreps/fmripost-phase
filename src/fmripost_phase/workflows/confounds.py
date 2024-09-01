@@ -5,9 +5,6 @@ def init_bold_confs_wf(
     mem_gb: float,
     metadata: dict,
     regressors_all_comps: bool,
-    regressors_dvars_th: float,
-    regressors_fd_th: float,
-    freesurfer: bool = False,
     name: str = 'bold_confs_wf',
 ):
     """Build a workflow to generate and write out confounding signals.
@@ -23,6 +20,8 @@ def init_bold_confs_wf(
     censored and high-pass filtered using a :abbr:`DCT (discrete cosine transform)` basis.
     The cosine basis, as well as one regressor per censored volume, are included
     for convenience.
+
+    XXX: What about tissue time series from the jolt and/or jump files?
     """
     from fmriprep.interfaces.confounds import FilterDropped
     from fmriprep.utils.bids import dismiss_echo
@@ -45,15 +44,9 @@ def init_bold_confs_wf(
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
-                'bold',
                 'phase',
                 'bold_mask',
-                'movpar_file',
-                'rmsd_file',
                 'skip_vols',
-                't1w_mask',
-                't1w_tpms',
-                'boldref2anat_xfm',
             ],
         ),
         name='inputnode',
@@ -63,9 +56,7 @@ def init_bold_confs_wf(
             fields=[
                 'confounds_file',
                 'confounds_metadata',
-                'acompcor_masks',
-                'tcompcor_mask',
-                'crown_mask',
+                'highcor_mask',
             ],
         ),
         name='outputnode',
@@ -160,7 +151,7 @@ def init_bold_confs_wf(
         (highcor, hcc_metadata_filter, [('metadata_file', 'in_file')]),
         (hcc_metadata_filter, hcc_metadata_fmt, [('out_file', 'in_file')]),
         (hcc_metadata_fmt, outputnode, [('output', 'confounds_metadata')]),
-        (highcor, outputnode, [('high_variance_masks', 'tcompcor_mask')]),
+        (highcor, outputnode, [('high_variance_masks', 'highcor_mask')]),
         (highcor, rois_plot, [('high_variance_masks', 'in_rois')]),
         (rois_plot, ds_report_bold_rois, [('out_report', 'in_file')]),
         (highcor, compcor_plot, [('metadata_file', 'in1')]),
