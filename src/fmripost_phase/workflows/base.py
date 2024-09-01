@@ -39,7 +39,7 @@ from nipype.pipeline import engine as pe
 from packaging.version import Version
 
 from fmripost_phase import config
-from fmripost_phase.utils.utils import _get_wf_name, update_dict
+from fmripost_phase.utils.utils import _get_wf_name, clean_datasinks, update_dict
 
 
 def init_fmripost_phase_wf():
@@ -494,14 +494,6 @@ Raw BOLD series were resampled to MNI152NLin6Asym:res-2, for ICA-Phase classific
 
 def _prefix(subid):
     return subid if subid.startswith('sub-') else f'sub-{subid}'
-
-
-def clean_datasinks(workflow: pe.Workflow) -> pe.Workflow:
-    """Overwrite ``out_path_base`` of smriprep's DataSinks."""
-    for node in workflow.list_node_names():
-        if node.split('.')[-1].startswith('ds_'):
-            workflow.get_node(node).interface.out_path_base = ''
-    return workflow
 
 
 def get_nss(confounds_file):
