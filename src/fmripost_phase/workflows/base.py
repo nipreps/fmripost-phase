@@ -305,53 +305,38 @@ def init_single_run_wf(bold_file):
     entities = extract_entities(bold_file)
 
     functional_cache = defaultdict(list, {})
-    if config.execution.derivatives:
-        # Collect native-space derivatives and transforms
-        functional_cache = collect_derivatives(
-            raw_dataset=config.execution.layout,
-            derivatives_dataset=None,
-            entities=entities,
-            fieldmap_id=None,
-            allow_multiple=False,
-            spaces=None,
-        )
-        for deriv_dir in config.execution.derivatives.values():
-            functional_cache = update_dict(
-                functional_cache,
-                collect_derivatives(
-                    raw_dataset=None,
-                    derivatives_dataset=deriv_dir,
-                    entities=entities,
-                    fieldmap_id=None,
-                    allow_multiple=False,
-                    spaces=spaces,
-                ),
-            )
-
-        if not functional_cache['confounds']:
-            if config.workflow.dummy_scans is None:
-                raise ValueError(
-                    'No confounds detected. '
-                    'Automatical dummy scan detection cannot be performed. '
-                    'Please set the `--dummy-scans` flag explicitly.'
-                )
-
-            # TODO: Calculate motion parameters from motion correction transform
-            raise ValueError('Motion parameters cannot be extracted from transforms yet.')
-
-    else:
-        # Collect MNI152NLin6Asym:res-2 derivatives
-        # Only derivatives dataset was passed in, so we expected standard-space derivatives
-        functional_cache.update(
+    # Collect native-space derivatives and transforms
+    functional_cache = collect_derivatives(
+        raw_dataset=config.execution.layout,
+        derivatives_dataset=None,
+        entities=entities,
+        fieldmap_id=None,
+        allow_multiple=False,
+        spaces=None,
+    )
+    for deriv_dir in config.execution.derivatives.values():
+        functional_cache = update_dict(
+            functional_cache,
             collect_derivatives(
                 raw_dataset=None,
-                derivatives_dataset=config.execution.layout,
+                derivatives_dataset=deriv_dir,
                 entities=entities,
                 fieldmap_id=None,
                 allow_multiple=False,
                 spaces=spaces,
             ),
         )
+
+    if not functional_cache['confounds']:
+        if config.workflow.dummy_scans is None:
+            raise ValueError(
+                'No confounds detected. '
+                'Automatical dummy scan detection cannot be performed. '
+                'Please set the `--dummy-scans` flag explicitly.'
+            )
+
+        # TODO: Calculate motion parameters from motion correction transform
+        raise ValueError('Motion parameters cannot be extracted from transforms yet.')
 
     config.loggers.workflow.info(
         (
@@ -370,10 +355,6 @@ def init_single_run_wf(bold_file):
                 'Please set the `--dummy-scans` flag explicitly.'
             )
         skip_vols = get_nss(functional_cache['confounds'])
-
-    workflow.__desc__ += """\
-Raw BOLD series were resampled to MNI152NLin6Asym:res-2, for ICA-Phase classification.
-"""
 
     validate_bold = pe.Node(
         ValidateImage(in_file=functional_cache['bold_raw']),
