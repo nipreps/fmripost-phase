@@ -66,62 +66,87 @@ Derivative data are written to
 ``<output dir>/sub-<label>/``.
 The `BIDS Derivatives`_ specification describes the naming and metadata conventions we follow.
 
-
-ICA derivatives
-~~~~~~~~~~~~~~~
-
-ICA outputs are stored in the ``func/`` subfolder::
-
-  sub-<label>/
-    func/
-      sub-<label>_space-MNI152NLin6Asym_res-2_desc-melodic_mixing.tsv
-      sub-<label>_space-MNI152NLin6Asym_res-2_desc-melodic_mixing.json
-      sub-<label>_space-MNI152NLin6Asym_res-2_desc-melodic_components.nii.gz
-      sub-<label>_space-MNI152NLin6Asym_res-2_desc-melodic_components.json
-
-
 Functional derivatives
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Functional derivatives are stored in the ``func/`` subfolder.
-All derivatives contain ``task-<task_label>`` (mandatory) and ``run-<run_index>`` (optional), and
-these will be indicated with ``[specifiers]``::
+**Unwrapped phase data**.
+Unwrapped phase data are stored in the ``func/`` subfolder,
+if the ``--unwrap`` flag is used::
 
   sub-<label>/
     func/
-      sub-<label>_[specifiers]_space-MNI152NLin6Asym_res-2_desc-aggrDenoised_bold.nii.gz
-      sub-<label>_[specifiers]_space-MNI152NLin6Asym_res-2_desc-nonaggrDenoised_bold.nii.gz
-      sub-<label>_[specifiers]_space-MNI152NLin6Asym_res-2_desc-orthaggrDenoised_bold.nii.gz
+      <source_entities>_part-phase_desc-unwrapped_bold.nii.gz
+      <source_entities>_part-phase_desc-unwrapped_bold.json
 
-**Regularly gridded outputs (images)**.
-Volumetric output spaces labels (``<label>`` above, and in the following) include
-``MNI152NLin6Asym`` (default).
+**Phase regression outputs**.
+Phase regression confounds are stored in the ``func/`` subfolder,
+if ``--regression-method`` is not set to ``none``::
+
+  sub-<label>/
+    func/
+      # The phase denoised BOLD series
+      <source_entities>_part-mag_desc-phaseDenoised_bold.nii.gz
+      <source_entities>_part-mag_desc-phaseDenoised_bold.json
+      # Fitted phase time series from the phase regression
+      # This can be combined with other confounds for denoising
+      <source_entities>_desc-fitted_timeseries.nii.gz
+      <source_entities>_desc-fitted_timeseries.json
+
+**LayNII phase outputs**.
+LayNII phase outputs are stored in the ``func/`` subfolder::
+
+  sub-<label>/
+    func/
+      # If --jump is enabled
+      <source_entities>_part-phase_desc-jump_bold.nii.gz
+      <source_entities>_part-phase_desc-jump_bold.json
+
+      # If --jolt is enabled
+      <source_entities>_part-phase_desc-jolt_bold.nii.gz
+      <source_entities>_part-phase_desc-jolt_bold.json
+
+**Complex-ICA derivatives**.
+Complex-ICA outputs from GIFT are stored in the ``func/`` subfolder,
+if ``--gift-dimensionality`` is not set to ``0``::
+
+  sub-<label>/
+    func/
+      <source_entities>_part-mag_desc-gift_mixing.tsv
+      <source_entities>_part-mag_desc-gift_mixing.json
+      <source_entities>_part-phase_desc-gift_mixing.tsv
+      <source_entities>_part-phase_desc-gift_mixing.json
+      <source_entities>_part-mag_desc-gift_components.nii.gz
+      <source_entities>_part-mag_desc-gift_components.json
+      <source_entities>_part-phase_desc-gift_components.nii.gz
+      <source_entities>_part-phase_desc-gift_components.json
 
 **Extracted confounding time series**.
 For each :abbr:`BOLD (blood-oxygen level dependent)` run processed with *fMRIPost-Phase*,
 an accompanying *confounds* file will be generated.
+
+*fMRIPost-Phase* outputs a set of confounds that can be used to denoise the data.
+These are stored in a TSV file (``desc-confounds_timeseries.tsv``) and a JSON file
+(``desc-confounds_timeseries.json``) that contains metadata about the confounds.
+
 Confounds_ are saved as a :abbr:`TSV (tab-separated value)` file::
 
   sub-<label>/
     func/
-      sub-<label>_[specifiers]_desc-phase_metrics.tsv
-      sub-<label>_[specifiers]_desc-phase_metrics.json
-      sub-<label>_[specifiers]_desc-phase_timeseries.tsv
-      sub-<label>_[specifiers]_desc-phase_timeseries.json
+      <source_entities>_desc-confounds_timeseries.tsv
+      <source_entities>_desc-confounds_timeseries.json
 
-Confounds
----------
+**CompCor confounds**.
+:abbr:`CompCor (Component Based Noise Correction)` is a :abbr:`PCA (principal component analysis)`,
+hence component-based, noise pattern recognition method.
+In the method, principal components are calculated within an :abbr:`ROI (Region of Interest)`
+that is unlikely to include signal related to neuronal activity, such as :abbr:`CSF (cerebro-spinal fluid)`
+and :abbr:`WM (white matter)` masks.
+Signals extracted from CompCor components can be further regressed out from the fMRI data with a
+denoising procedure [Behzadi2007]_.
 
-*fMRIPost-Phase* outputs a set of confounds that can be used to denoise the data.
-These are stored in a TSV file (``desc-phase_timeseries.tsv``) and a JSON file
-(``desc-phase_timeseries.json``) that contains metadata about the confounds.
+- ``h_comp_cor_XX``: noise components as calculated using HighCor.
+- ``highcor``: mean time series from the high-variance voxels identified by HighCor.
 
-The confounds generated by *fMRIPost-Phase* are ICA component time series
-classified as "rejected" by ICA-Phase.
-
-Columns starting with ``phase_motion_`` are the raw noise ICA component time series.
-Columns starting with ``phase_orth_motion_`` are the noise ICA component time series,
-after z-scoring and orthogonalization with respect to the signal ICA component time series.
 
 Confounds and "carpet"-plot on the visual reports
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
