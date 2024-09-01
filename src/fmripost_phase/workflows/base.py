@@ -285,9 +285,7 @@ def init_single_run_wf(bold_file):
     from fmriprep.workflows.bold.stc import init_bold_stc_wf
     from nipype.interfaces import utility as niu
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.header import ValidateImage
-    from templateflow.api import get as get_template
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
