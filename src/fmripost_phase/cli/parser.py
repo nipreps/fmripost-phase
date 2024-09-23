@@ -198,6 +198,12 @@ def _build_parser(**kwargs):
         default=False,
         help='Apply RETROICOR to complex-valued data.',
     )
+    g_phase.add_argument(
+        '--nordic',
+        action='store_true',
+        default=False,
+        help='Apply NORDIC to complex-valued data.',
+    )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
     g_bids.add_argument(

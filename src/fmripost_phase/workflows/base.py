@@ -361,6 +361,10 @@ def init_single_run_wf(bold_file):
         name='validate_bold',
     )
 
+    if config.workflow.nordic:
+        # Run NORDIC on the magnitude and phase data
+        ...
+
     # Warp magnitude data to boldref space
     stc_buffer = pe.Node(
         niu.IdentityInterface(fields=['bold_file']),
@@ -408,6 +412,11 @@ def init_single_run_wf(bold_file):
     # Convert from arbitrary units to radians
     # Unwrap with warpkit
     # Warp to boldref space (motion correction + distortion correction[?] + fmap-to-boldref)
+
+    if config.workflow.retroicor:
+        # Run RETROICOR on the magnitude and phase data
+        # After rescaling + unwrapping
+        ...
 
     if config.workflow.regression_method:
         # Now denoise the BOLD data using phase regression

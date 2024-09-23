@@ -547,6 +547,8 @@ class workflow(_Config):
     """Calculate and output phase jolt file."""
     jump = None
     """Calculate and output phase jump file."""
+    nordic = None
+    """Denoise data with NORDIC."""
     regression_method = None
     """Phase regression method to apply, if any."""
     retroicor = None
