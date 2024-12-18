@@ -105,7 +105,7 @@ def to_radians(phase):
 
     From the FUGUE User guide::
 
-        If you have seperate phase volumes that are in integer format then do:
+        If you have separate phase volumes that are in integer format then do:
 
         fslmaths orig_phase0 -mul 3.14159 -div 2048 phase0_rad -odt float
         fslmaths orig_phase1 -mul 3.14159 -div 2048 phase1_rad -odt float
