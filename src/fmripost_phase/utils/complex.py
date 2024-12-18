@@ -67,7 +67,7 @@ def to_mag(real, imag):
 
     https://www.eeweb.com/quizzes/convert-between-real-imaginary-and-magnitude-phase
     """
-    mag = np.sqrt((real ** 2) + (imag ** 2))
+    mag = np.sqrt((real**2) + (imag**2))
     return mag
 
 
