@@ -96,7 +96,7 @@ def to_imag(mag, phase):
     return imag
 
 
-def to_radians(phase):
+def to_radians(in_file):
     """Ensure that phase images are in a usable range for unwrapping [0, 2pi).
 
     Adapted from
@@ -117,11 +117,13 @@ def to_radians(phase):
         not in integer format, you must still check that the units are in
         radians, and if not scale them appropriately using fslmaths.
     """
-    phase_img = check_niimg(phase)
+    phase_img = nb.load(in_file)
     phase_data = phase_img.get_fdata()
     imax = phase_data.max()
     imin = phase_data.min()
     scaled = (phase_data - imin) / (imax - imin)
     rad_data = 2 * np.pi * scaled
     out_img = nb.Nifti1Image(rad_data, phase_img.affine, phase_img.header)
-    return out_img
+    out_file = os.path.abspath('phase_radians.nii.gz')
+    out_img.to_filename(out_file)
+    return out_file

@@ -290,6 +290,7 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
+    from fmripost_phase.utils.complex import to_radians
     from fmripost_phase.workflows.confounds import init_bold_confs_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
@@ -361,6 +362,17 @@ def init_single_run_wf(bold_file):
         name='validate_bold',
     )
 
+    # Rescale phase data to radians
+    rescale_phase = pe.Node(
+        niu.Function(
+            input_names=['in_file'],
+            output_names=['out_file'],
+            function=to_radians,
+        ),
+        name='rescale_phase',
+    )
+    rescale_phase.inputs.in_file = functional_cache['phase']
+
     if config.workflow.nordic:
         # Run NORDIC on the magnitude and phase data
         ...
@@ -425,9 +437,9 @@ def init_single_run_wf(bold_file):
         phase_regression_wf.inputs.inputnode.bold_mask = functional_cache['bold_mask_native']
 
         workflow.connect([
+            (rescale_phase, phase_regression_wf, [('out_file', 'inputnode.phase_file')]),
             (mag_boldref_wf, phase_regression_wf, [
                 ('outputnode.bold_file', 'inputnode.bold_file'),
-                ('outputnode.bold_file', 'inputnode.phase_file'),
             ]),
         ])  # fmt:skip
 
@@ -438,7 +450,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=False),
             name='calc_jolt',
         )
-        workflow.connect([(mag_boldref_wf, calc_jolt, [('outputnode.bold_file', 'in_file')])])
+        workflow.connect([(rescale_phase, calc_jolt, [('out_file', 'in_file')])])
 
         ds_jolt = pe.Node(
             DerivativesDataSink(
@@ -455,7 +467,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=True),
             name='calc_jump',
         )
-        workflow.connect([(mag_boldref_wf, calc_jump, [('outputnode.bold_file', 'in_file')])])
+        workflow.connect([(rescale_phase, calc_jump, [('out_file', 'in_file')])])
 
         ds_jump = pe.Node(
             DerivativesDataSink(
