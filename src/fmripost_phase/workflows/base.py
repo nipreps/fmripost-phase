@@ -420,14 +420,39 @@ def init_single_run_wf(bold_file):
     ])  # fmt:skip
 
     # Minimally process phase data
-    # Remove non-steady-state volumes?
-    # Convert from arbitrary units to radians
+    # Remove non-steady-state volumes
+    remove_phase_nss = pe.Node(
+        niu.IdentityInterface(fields=['phase_file', 'skip_vols']),
+        name='remove_phase_nss',
+    )
+    remove_phase_nss.inputs.skip_vols = skip_vols
+    workflow.connect([(rescale_phase, remove_phase_nss, [('out_file', 'phase_file')])])
+
     # Unwrap with warpkit
+    unwrap_wf = pe.Node(
+        niu.IdentityInterface(fields=['phase_file']),
+        name='unwrap_wf',
+    )
+    workflow.connect([(remove_phase_nss, unwrap_wf, [('phase_file', 'phase_file')])])
+
     # Warp to boldref space (motion correction + distortion correction[?] + fmap-to-boldref)
+    phase_boldref_wf = init_bold_volumetric_resample_wf(
+        metadata=bold_metadata,
+        fieldmap_id=None,  # XXX: Ignoring the field map for now
+        omp_nthreads=omp_nthreads,
+        mem_gb=mem_gb,
+        jacobian='fmap-jacobian' not in config.workflow.ignore,
+        name='mag_boldref_wf',
+    )
+    phase_boldref_wf.inputs.inputnode.motion_xfm = functional_cache['hmc']
+    phase_boldref_wf.inputs.inputnode.boldref2fmap_xfm = functional_cache['boldref2fmap']
+    phase_boldref_wf.inputs.inputnode.bold_ref_file = functional_cache['bold_mask_native']
+    workflow.connect([(unwrap_wf, phase_boldref_wf, [('out_file', 'inputnode.bold_file')])])
 
     if config.workflow.retroicor:
         # Run RETROICOR on the magnitude and phase data
         # After rescaling + unwrapping
+        # TODO: Load physio data
         ...
 
     if config.workflow.regression_method:
@@ -437,7 +462,9 @@ def init_single_run_wf(bold_file):
         phase_regression_wf.inputs.inputnode.bold_mask = functional_cache['bold_mask_native']
 
         workflow.connect([
-            (rescale_phase, phase_regression_wf, [('out_file', 'inputnode.phase_file')]),
+            (phase_boldref_wf, phase_regression_wf, [
+                ('outputnode.bold_file', 'inputnode.phase_file'),
+            ]),
             (mag_boldref_wf, phase_regression_wf, [
                 ('outputnode.bold_file', 'inputnode.bold_file'),
             ]),
@@ -450,7 +477,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=False),
             name='calc_jolt',
         )
-        workflow.connect([(rescale_phase, calc_jolt, [('out_file', 'in_file')])])
+        workflow.connect([(phase_boldref_wf, calc_jolt, [('out_file', 'in_file')])])
 
         ds_jolt = pe.Node(
             DerivativesDataSink(
@@ -467,7 +494,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=True),
             name='calc_jump',
         )
-        workflow.connect([(rescale_phase, calc_jump, [('out_file', 'in_file')])])
+        workflow.connect([(phase_boldref_wf, calc_jump, [('out_file', 'in_file')])])
 
         ds_jump = pe.Node(
             DerivativesDataSink(
@@ -480,7 +507,7 @@ def init_single_run_wf(bold_file):
 
     if config.workflow.gift_dimensionality != 0:
         # Run GIFT ICA
-        pass
+        raise NotImplementedError('GIFT ICA is not yet implemented.')
 
     # Compute confounds, including HighCor
     bold_confounds_wf = init_bold_confs_wf(
