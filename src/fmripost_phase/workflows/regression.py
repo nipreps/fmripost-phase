@@ -86,6 +86,10 @@ def init_phase_regression_wf(bold_file, metadata):
     from nipype.pipeline import engine as pe
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
+    from fmripost_phase.interfaces.complex import (
+        MagnitudePhaseToRealImaginary,
+        RealImaginaryToMagnitudePhase,
+    )
     from fmripost_phase.interfaces.regression import ODRFit
     from fmripost_phase.utils.utils import _get_wf_name
 
@@ -134,54 +138,40 @@ def init_phase_regression_wf(bold_file, metadata):
     )
     workflow.connect([(drop_nss, determine_leg_order, [('phase_file', 'phase_file')])])
 
-    # Combine magnitude and phase into complex-valued data
-    combine_phase_mag = pe.Node(
-        niu.IdentityInterface(fields=['phase_file', 'mag_file']),
-        name='combine_phase_mag',
+    # Convert polar data to real and imaginary data
+    convert_to_real_imaginary = pe.Node(
+        MagnitudePhaseToRealImaginary(),
+        name='convert_to_real_imaginary',
     )
     workflow.connect([
-        (inputnode, combine_phase_mag, [('bold_file', 'mag_file')]),
-        (drop_nss, combine_phase_mag, [('phase_file', 'phase_file')]),
+        (inputnode, convert_to_real_imaginary, [('bold_file', 'magnitude_file')]),
+        (drop_nss, convert_to_real_imaginary, [('phase_file', 'phase_file')]),
     ])  # fmt:skip
-
-    # Split complex-valued data into real and imaginary components.
-    split_complex = pe.Node(
-        niu.IdentityInterface(fields=['complex_file']),
-        name='split_complex',
-    )
-    workflow.connect([(combine_phase_mag, split_complex, [('phase_file', 'complex_file')])])
 
     # Apply motion correction transform from magnitude processing to real and imaginary files.
     # XXX: Why apply motion correction to imaginary data instead of phase data?
     apply_motion_correction = pe.Node(
-        niu.IdentityInterface(fields=['real_file', 'imag_file']),
+        niu.IdentityInterface(fields=['real_file', 'imaginary_file']),
         name='apply_motion_correction',
     )
     workflow.connect([
-        (combine_phase_mag, apply_motion_correction, [
-            ('complex_file', 'real_file'),
-            ('complex_file', 'imag_file'),
+        (convert_to_real_imaginary, apply_motion_correction, [
+            ('real_file', 'real_file'),
+            ('imaginary_file', 'imaginary_file'),
         ]),
     ])  # fmt:skip
 
-    # Combine motion-corrected real and imaginary files into complex-valued data.
-    combine_real_imag = pe.Node(
-        niu.IdentityInterface(fields=['real_file', 'imag_file']),
-        name='combine_real_imag',
+    # Combine motion-corrected real and imaginary files into polar data.
+    convert_to_magnitude_phase = pe.Node(
+        RealImaginaryToMagnitudePhase(),
+        name='convert_to_magnitude_phase',
     )
     workflow.connect([
-        (apply_motion_correction, combine_real_imag, [
+        (apply_motion_correction, convert_to_magnitude_phase, [
             ('real_file', 'real_file'),
-            ('imag_file', 'imag_file'),
+            ('imaginary_file', 'imaginary_file'),
         ]),
     ])  # fmt:skip
-
-    # Split motion-corrected complex-valued file into magnitude and phase components.
-    split_complex_mc = pe.Node(
-        niu.IdentityInterface(fields=['complex_file']),
-        name='split_complex_mc',
-    )
-    workflow.connect([(combine_real_imag, split_complex_mc, [('real_file', 'complex_file')])])
 
     # Detrend the unwrapped phase data using the Legendre polynomial order determined previously.
     detrend_phase = pe.Node(
@@ -190,7 +180,7 @@ def init_phase_regression_wf(bold_file, metadata):
     )
     workflow.connect([
         (determine_leg_order, detrend_phase, [('order', 'order')]),
-        (split_complex_mc, detrend_phase, [('complex_file', 'phase_file')]),
+        (convert_to_magnitude_phase, detrend_phase, [('phase_file', 'phase_file')]),
     ])  # fmt:skip
 
     # Apply brain mask from magnitude processing to phase data.
