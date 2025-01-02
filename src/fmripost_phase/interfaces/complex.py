@@ -188,8 +188,8 @@ class SplitNoise(SimpleInterface):
         import nibabel as nb
 
         img = nb.load(self.inputs.in_file)
-        data_img = img.slicer[..., :-self.inputs.n_noise_volumes]
-        noise_img = img.slicer[..., -self.inputs.n_noise_volumes:]
+        data_img = img.slicer[..., : -self.inputs.n_noise_volumes]
+        noise_img = img.slicer[..., -self.inputs.n_noise_volumes :]
         self._results['out_file'] = os.path.abspath(os.path.join(runtime.cwd, 'data.nii.gz'))
         self._results['noise_file'] = os.path.abspath(os.path.join(runtime.cwd, 'noise.nii.gz'))
         data_img.to_filename(self._results['out_file'])
