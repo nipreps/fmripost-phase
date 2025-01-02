@@ -403,6 +403,10 @@ def init_single_run_wf(bold_file):
         phase_to_radians.inputs.in_file = functional_cache['phase_raw']
         workflow.connect([(phase_to_radians, phase_buffer, [('out_file', 'phase')])])
 
+    denoise_buffer = pe.Node(
+        niu.IdentityInterface(fields=['magnitude', 'phase']),
+        name='denoise_buffer',
+    )
     if config.workflow.thermal_denoise_method:
         # Run LLR denoising on the magnitude and phase data
         thermal_denoise = pe.Node(
@@ -416,6 +420,15 @@ def init_single_run_wf(bold_file):
                 ('phase', 'phase'),
                 ('phase_norf', 'phase_norf'),
             ]),
+            (thermal_denoise, denoise_buffer, [
+                ('magnitude', 'magnitude'),
+                ('phase', 'phase'),
+            ]),
+        ])  # fmt:skip
+    else:
+        workflow.connect([
+            (validate_bold, denoise_buffer, [('out_file', 'magnitude')]),
+            (phase_buffer, denoise_buffer, [('phase', 'phase')]),
         ])  # fmt:skip
 
     # Warp magnitude data to boldref space
@@ -432,11 +445,11 @@ def init_single_run_wf(bold_file):
         )
         bold_stc_wf.inputs.inputnode.skip_vols = skip_vols
         workflow.connect([
-            (validate_bold, bold_stc_wf, [('out_file', 'inputnode.bold_file')]),
+            (denoise_buffer, bold_stc_wf, [('magnitude', 'inputnode.bold_file')]),
             (bold_stc_wf, stc_buffer, [('outputnode.stc_file', 'bold_file')]),
         ])  # fmt:skip
     else:
-        workflow.connect([(validate_bold, stc_buffer, [('out_file', 'bold_file')])])
+        workflow.connect([(denoise_buffer, stc_buffer, [('magnitude', 'bold_file')])])
 
     mag_boldref_wf = init_bold_volumetric_resample_wf(
         metadata=bold_metadata,
@@ -446,12 +459,12 @@ def init_single_run_wf(bold_file):
         jacobian='fmap-jacobian' not in config.workflow.ignore,
         name='mag_boldref_wf',
     )
-    mag_boldref_wf.inputs.inputnode.bold_file = functional_cache['bold_raw']
     mag_boldref_wf.inputs.inputnode.motion_xfm = functional_cache['hmc']
     mag_boldref_wf.inputs.inputnode.boldref2fmap_xfm = functional_cache['boldref2fmap']
     mag_boldref_wf.inputs.inputnode.bold_ref_file = functional_cache['bold_mask_native']
 
     workflow.connect([
+        (stc_buffer, mag_boldref_wf, [('bold_file', 'inputnode.bold_file')]),
         # XXX: Ignoring the field map for now
         # (inputnode, mag_boldref_wf, [
         #     ('fmap_ref', 'inputnode.fmap_ref'),
@@ -467,7 +480,7 @@ def init_single_run_wf(bold_file):
         name='remove_phase_nss',
     )
     remove_phase_nss.inputs.skip_vols = skip_vols
-    workflow.connect([(phase_to_radians, remove_phase_nss, [('out_file', 'phase_file')])])
+    workflow.connect([(denoise_buffer, remove_phase_nss, [('phase', 'phase_file')])])
 
     # Unwrap with warpkit
     unwrap_wf = pe.Node(
@@ -518,7 +531,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=False),
             name='calc_jolt',
         )
-        workflow.connect([(phase_boldref_wf, calc_jolt, [('out_file', 'in_file')])])
+        workflow.connect([(phase_boldref_wf, calc_jolt, [('outputnode.out_file', 'in_file')])])
 
         ds_jolt = pe.Node(
             DerivativesDataSink(
@@ -535,7 +548,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=True),
             name='calc_jump',
         )
-        workflow.connect([(phase_boldref_wf, calc_jump, [('out_file', 'in_file')])])
+        workflow.connect([(phase_boldref_wf, calc_jump, [('outputnode.out_file', 'in_file')])])
 
         ds_jump = pe.Node(
             DerivativesDataSink(
@@ -557,7 +570,10 @@ def init_single_run_wf(bold_file):
         regressors_all_comps=config.workflow.regressors_all_comps,
         name='bold_confounds_wf',
     )
-    # TODO: Set 'phase', 'bold_mask', and 'skip_vols'
+    # TODO: Set 'bold_mask' and 'skip_vols'
+    workflow.connect([
+        (phase_boldref_wf, bold_confounds_wf, [('outputnode.bold_file', 'inputnode.phase')]),
+    ])  # fmt:skip
 
     ds_confounds = pe.Node(
         DerivativesDataSink(
