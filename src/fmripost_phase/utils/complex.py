@@ -117,6 +117,8 @@ def to_radians(in_file):
         not in integer format, you must still check that the units are in
         radians, and if not scale them appropriately using fslmaths.
     """
+    import os
+
     phase_img = nb.load(in_file)
     phase_data = phase_img.get_fdata()
     imax = phase_data.max()
