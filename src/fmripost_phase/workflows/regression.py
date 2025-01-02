@@ -87,8 +87,8 @@ def init_phase_regression_wf(bold_file, metadata):
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
     from fmripost_phase.interfaces.complex import (
-        MagnitudePhaseToRealImaginary,
-        RealImaginaryToMagnitudePhase,
+        PolarToRealImaginary,
+        RealImaginaryToPolar,
     )
     from fmripost_phase.interfaces.regression import ODRFit
     from fmripost_phase.utils.utils import _get_wf_name
@@ -140,36 +140,36 @@ def init_phase_regression_wf(bold_file, metadata):
 
     # Convert polar data to real and imaginary data
     convert_to_real_imaginary = pe.Node(
-        MagnitudePhaseToRealImaginary(),
+        PolarToRealImaginary(),
         name='convert_to_real_imaginary',
     )
     workflow.connect([
-        (inputnode, convert_to_real_imaginary, [('bold_file', 'magnitude_file')]),
-        (drop_nss, convert_to_real_imaginary, [('phase_file', 'phase_file')]),
+        (inputnode, convert_to_real_imaginary, [('bold_file', 'magnitude')]),
+        (drop_nss, convert_to_real_imaginary, [('phase_file', 'phase')]),
     ])  # fmt:skip
 
     # Apply motion correction transform from magnitude processing to real and imaginary files.
     # XXX: Why apply motion correction to imaginary data instead of phase data?
     apply_motion_correction = pe.Node(
-        niu.IdentityInterface(fields=['real_file', 'imaginary_file']),
+        niu.IdentityInterface(fields=['real', 'imaginary']),
         name='apply_motion_correction',
     )
     workflow.connect([
         (convert_to_real_imaginary, apply_motion_correction, [
-            ('real_file', 'real_file'),
-            ('imaginary_file', 'imaginary_file'),
+            ('real', 'real'),
+            ('imaginary', 'imaginary'),
         ]),
     ])  # fmt:skip
 
     # Combine motion-corrected real and imaginary files into polar data.
-    convert_to_magnitude_phase = pe.Node(
-        RealImaginaryToMagnitudePhase(),
-        name='convert_to_magnitude_phase',
+    convert_to_polar = pe.Node(
+        RealImaginaryToPolar(),
+        name='convert_to_polar',
     )
     workflow.connect([
-        (apply_motion_correction, convert_to_magnitude_phase, [
-            ('real_file', 'real_file'),
-            ('imaginary_file', 'imaginary_file'),
+        (apply_motion_correction, convert_to_polar, [
+            ('real', 'real'),
+            ('imaginary', 'imaginary'),
         ]),
     ])  # fmt:skip
 
@@ -180,7 +180,7 @@ def init_phase_regression_wf(bold_file, metadata):
     )
     workflow.connect([
         (determine_leg_order, detrend_phase, [('order', 'order')]),
-        (convert_to_magnitude_phase, detrend_phase, [('phase_file', 'phase_file')]),
+        (convert_to_polar, detrend_phase, [('phase', 'phase_file')]),
     ])  # fmt:skip
 
     # Apply brain mask from magnitude processing to phase data.

@@ -547,8 +547,8 @@ class workflow(_Config):
     """Calculate and output phase jolt file."""
     jump = None
     """Calculate and output phase jump file."""
-    nordic = None
-    """Denoise data with NORDIC."""
+    thermal_denoise_method = None
+    """Apply NORDIC or MP-PCA denoising to the BOLD data to remove thermal noise."""
     regression_method = None
     """Phase regression method to apply, if any."""
     retroicor = None

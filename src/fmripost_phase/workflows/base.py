@@ -125,11 +125,7 @@ def init_single_subject_wf(subject_id: str):
     4.  Collect each run's associated files.
         -   Transform(s) to MNI152NLin6Asym
         -   Confounds file
-        -   ICA-Phase uses its own standard-space edge, CSF, and brain masks,
-            so we don't need to worry about those.
-    5.  Use ``resampler`` to warp BOLD to MNI152NLin6Asym-2mm.
-    6.  Convert motion parameters from confounds file to FSL format.
-    7.  Run ICA-Phase.
+    5.  Run phase processing steps.
     8.  Warp BOLD to requested output spaces and denoise with ICA-Phase.
 
     """
@@ -288,9 +284,9 @@ def init_single_run_wf(bold_file):
     from niworkflows.interfaces.header import ValidateImage
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
+    from fmripost_phase.interfaces.complex import Phase2Radians
     from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
-    from fmripost_phase.utils.complex import to_radians
     from fmripost_phase.workflows.confounds import init_bold_confs_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
@@ -362,20 +358,65 @@ def init_single_run_wf(bold_file):
         name='validate_bold',
     )
 
-    # Rescale phase data to radians
-    rescale_phase = pe.Node(
-        niu.Function(
-            input_names=['in_file'],
-            output_names=['out_file'],
-            function=to_radians,
-        ),
-        name='rescale_phase',
+    phase_buffer = pe.Node(
+        niu.IdentityInterface(fields=['phase', 'phase_norf']),
+        name='phase_buffer',
     )
-    rescale_phase.inputs.in_file = functional_cache['phase']
+    if ('norf' not in config.workflow.ignore) and ('phase_norf' in functional_cache):
+        from fmripost_phase.interfaces.complex import ConcatenateNoise, SplitNoise
 
-    if config.workflow.nordic:
-        # Run NORDIC on the magnitude and phase data
-        ...
+        # Concatenate phase and noRF data before rescaling
+        concatenate_phase = pe.Node(
+            ConcatenateNoise(
+                in_file=functional_cache['phase_raw'],
+                noise_file=functional_cache['phase_norf'],
+            ),
+            name='concatenate_phase',
+        )
+
+        # Rescale phase data to radians
+        phase_to_radians = pe.Node(
+            Phase2Radians(),
+            name='phase_to_radians',
+        )
+        workflow.connect([(concatenate_phase, phase_to_radians, [('out', 'in_file')])])
+
+        # Split rescaled phase data
+        split_phase = pe.Node(
+            SplitNoise(),
+            name='split_phase',
+        )
+        workflow.connect([
+            (concatenate_phase, split_phase, [('n_noise_volumes', 'n_noise_volumes')]),
+            (phase_to_radians, split_phase, [('out_file', 'in_file')]),
+            (split_phase, phase_buffer, [
+                ('out_file', 'phase'),
+                ('noise_file', 'phase_norf'),
+            ]),
+        ])  # fmt:skip
+    else:
+        # Rescale phase data to radians
+        phase_to_radians = pe.Node(
+            Phase2Radians(),
+            name='phase_to_radians',
+        )
+        phase_to_radians.inputs.in_file = functional_cache['phase_raw']
+        workflow.connect([(phase_to_radians, phase_buffer, [('out_file', 'phase')])])
+
+    if config.workflow.thermal_denoise_method:
+        # Run LLR denoising on the magnitude and phase data
+        thermal_denoise = pe.Node(
+            niu.IdentityInterface(fields=['magnitude', 'phase', 'magnitude_norf', 'phase_norf']),
+            name='thermal_denoise',
+        )
+        thermal_denoise.inputs.magnitude_norf = functional_cache['bold_norf']
+        workflow.connect([
+            (validate_bold, thermal_denoise, [('out_file', 'magnitude')]),
+            (phase_buffer, thermal_denoise, [
+                ('phase', 'phase'),
+                ('phase_norf', 'phase_norf'),
+            ]),
+        ])  # fmt:skip
 
     # Warp magnitude data to boldref space
     stc_buffer = pe.Node(
@@ -426,7 +467,7 @@ def init_single_run_wf(bold_file):
         name='remove_phase_nss',
     )
     remove_phase_nss.inputs.skip_vols = skip_vols
-    workflow.connect([(rescale_phase, remove_phase_nss, [('out_file', 'phase_file')])])
+    workflow.connect([(phase_to_radians, remove_phase_nss, [('out_file', 'phase_file')])])
 
     # Unwrap with warpkit
     unwrap_wf = pe.Node(

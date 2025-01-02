@@ -199,10 +199,12 @@ def _build_parser(**kwargs):
         help='Apply RETROICOR to complex-valued data.',
     )
     g_phase.add_argument(
-        '--nordic',
-        action='store_true',
-        default=False,
-        help='Apply NORDIC to complex-valued data.',
+        '--thermal-denoise-method',
+        action='store',
+        dest='thermal_denoise_method',
+        default=None,
+        choices=['mppca'],
+        help='Apply MP-PCA denoising to the BOLD data to remove thermal noise',
     )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
@@ -341,7 +343,12 @@ def _build_parser(**kwargs):
         action='store',
         nargs='+',
         default=[],
-        choices=['fieldmaps', 'slicetiming', 'fmap-jacobian'],
+        choices=[
+            'fieldmaps',
+            'slicetiming',
+            'fmap-jacobian',
+            'norf',
+        ],
         help=(
             'Ignore selected aspects of the input dataset to disable corresponding '
             'parts of the resampling workflow (a space delimited list)'
