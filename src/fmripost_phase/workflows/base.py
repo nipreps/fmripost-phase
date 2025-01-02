@@ -507,7 +507,7 @@ def init_single_run_wf(bold_file):
         # Run RETROICOR on the magnitude and phase data
         # After rescaling + unwrapping
         # TODO: Load physio data
-        ...
+        raise NotImplementedError('RETROICOR is not yet implemented.')
 
     if config.workflow.regression_method:
         # Now denoise the BOLD data using phase regression
@@ -570,7 +570,8 @@ def init_single_run_wf(bold_file):
         regressors_all_comps=config.workflow.regressors_all_comps,
         name='bold_confounds_wf',
     )
-    # TODO: Set 'bold_mask' and 'skip_vols'
+    bold_confounds_wf.inputs.inputnode.skip_vols = skip_vols
+    bold_confounds_wf.inputs.inputnode.bold_mask = functional_cache['bold_mask_native']
     workflow.connect([
         (phase_boldref_wf, bold_confounds_wf, [('outputnode.bold_file', 'inputnode.phase')]),
     ])  # fmt:skip
