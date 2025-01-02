@@ -365,7 +365,8 @@ def init_single_run_wf(bold_file):
     has_norf = (
         ('norf' not in config.workflow.ignore) and
         ('phase_norf' in functional_cache) and
-        ('magnitude_norf' in functional_cache)
+        ('magnitude_norf' in functional_cache) and
+        config.workflow.thermal_denoise_method
     )
     if has_norf:
         from fmripost_phase.interfaces.complex import ConcatenateNoise, SplitNoise
@@ -414,20 +415,26 @@ def init_single_run_wf(bold_file):
     )
     if config.workflow.thermal_denoise_method:
         # Run LLR denoising on the magnitude and phase data
-        thermal_denoise = pe.Node(
+        denoise_wf = pe.Node(
             niu.IdentityInterface(fields=['magnitude', 'phase', 'magnitude_norf', 'phase_norf']),
-            name='thermal_denoise',
+            name='denoise_wf',
         )
-        thermal_denoise.inputs.magnitude_norf = functional_cache['magnitude_norf']
+        if has_norf:
+            validate_norf = pe.Node(
+                ValidateImage(in_file=functional_cache['magnitude_norf']),
+                name='validate_norf',
+            )
+            workflow.connect([
+                (validate_norf, denoise_wf, [('out_file', 'inputnode.magnitude_norf')]),
+                (phase_buffer, denoise_wf, [('phase_norf', 'inputnode.phase_norf')]),
+            ])  # fmt:skip
+
         workflow.connect([
-            (validate_bold, thermal_denoise, [('out_file', 'magnitude')]),
-            (phase_buffer, thermal_denoise, [
-                ('phase', 'phase'),
-                ('phase_norf', 'phase_norf'),
-            ]),
-            (thermal_denoise, denoise_buffer, [
-                ('magnitude', 'magnitude'),
-                ('phase', 'phase'),
+            (validate_bold, denoise_wf, [('out_file', 'inputnode.magnitude')]),
+            (phase_buffer, denoise_wf, [('phase', 'inputnode.phase')]),
+            (denoise_wf, denoise_buffer, [
+                ('outputnode.magnitude', 'magnitude'),
+                ('outputnode.phase', 'phase'),
             ]),
         ])  # fmt:skip
     else:
