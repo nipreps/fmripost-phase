@@ -6,11 +6,6 @@ Usage Notes
 ===========
 
 .. warning::
-   *fMRIPost-Phase* requires preprocessing outputs in MNI152NLin6Asym space with
-   2 mm3 voxels (i.e., ``res-02``).
-   Make sure you run fMRIPrep with ``--output-spaces MNI152NLin6Asym:res-02``.
-
-.. warning::
    *fMRIPost-Phase* includes a tracking system to report usage statistics and errors
    for debugging and grant reporting purposes.
    Users can opt-out using the ``--notrack`` command line argument.
