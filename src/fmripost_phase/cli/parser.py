@@ -209,13 +209,6 @@ def _build_parser(**kwargs):
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
     g_bids.add_argument(
-        '--skip_bids_validation',
-        '--skip-bids-validation',
-        action='store_true',
-        default=False,
-        help='Assume the input dataset is BIDS compliant and skip the validation',
-    )
-    g_bids.add_argument(
         '--participant-label',
         '--participant_label',
         action='store',
@@ -601,16 +594,6 @@ def parse_args(args=None, namespace=None):
             'The selected working directory is a subdirectory of the input BIDS folder. '
             'Please modify the output path.'
         )
-
-    # Validate inputs
-    if not opts.skip_bids_validation:
-        from fmripost_phase.utils.bids import validate_input_dir
-
-        build_log.info(
-            'Making sure the input data is BIDS compliant '
-            '(warnings can be ignored in most cases).'
-        )
-        validate_input_dir(config.environment.exec_env, opts.bids_dir, opts.participant_label)
 
     # Setup directories
     config.execution.log_dir = config.execution.fmripost_phase_dir / 'logs'
