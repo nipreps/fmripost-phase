@@ -1,7 +1,7 @@
 {
     "queries": {
         "raw": {
-            "bold_raw": {
+            "magnitude_raw": {
                 "datatype": "func",
                 "echo": null,
                 "part": "mag",
@@ -21,7 +21,7 @@
                     ".nii"
                 ]
             },
-            "bold_norf": {
+            "magnitude_norf": {
                 "datatype": "func",
                 "echo": null,
                 "part": "mag",

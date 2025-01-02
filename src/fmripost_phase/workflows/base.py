@@ -181,7 +181,7 @@ It is released under the [CC0]\
             allow_multiple=True,
             spaces=None,
         )
-        subject_data['bold'] = listify(subject_data['bold_raw'])
+        subject_data['bold'] = listify(subject_data['magnitude_raw'])
     else:
         # Derivatives dataset only
         config.loggers.workflow.info('Derivatives-only workflow mode enabled')
@@ -333,7 +333,7 @@ def init_single_run_wf(bold_file):
             )
 
         # TODO: Calculate motion parameters from motion correction transform
-        raise ValueError('Motion parameters cannot be extracted from transforms yet.')
+        raise NotImplementedError('Motion parameters cannot be extracted from transforms yet.')
 
     config.loggers.workflow.info(
         (
@@ -354,7 +354,7 @@ def init_single_run_wf(bold_file):
         skip_vols = get_nss(functional_cache['confounds'])
 
     validate_bold = pe.Node(
-        ValidateImage(in_file=functional_cache['bold_raw']),
+        ValidateImage(in_file=functional_cache['magnitude_raw']),
         name='validate_bold',
     )
 
@@ -362,7 +362,12 @@ def init_single_run_wf(bold_file):
         niu.IdentityInterface(fields=['phase', 'phase_norf']),
         name='phase_buffer',
     )
-    if ('norf' not in config.workflow.ignore) and ('phase_norf' in functional_cache):
+    has_norf = (
+        ('norf' not in config.workflow.ignore) and
+        ('phase_norf' in functional_cache) and
+        ('magnitude_norf' in functional_cache)
+    )
+    if has_norf:
         from fmripost_phase.interfaces.complex import ConcatenateNoise, SplitNoise
 
         # Concatenate phase and noRF data before rescaling
@@ -413,7 +418,7 @@ def init_single_run_wf(bold_file):
             niu.IdentityInterface(fields=['magnitude', 'phase', 'magnitude_norf', 'phase_norf']),
             name='thermal_denoise',
         )
-        thermal_denoise.inputs.magnitude_norf = functional_cache['bold_norf']
+        thermal_denoise.inputs.magnitude_norf = functional_cache['magnitude_norf']
         workflow.connect([
             (validate_bold, thermal_denoise, [('out_file', 'magnitude')]),
             (phase_buffer, thermal_denoise, [
