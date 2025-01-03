@@ -363,10 +363,10 @@ def init_single_run_wf(bold_file):
         name='phase_buffer',
     )
     has_norf = (
-        ('norf' not in config.workflow.ignore) and
-        ('phase_norf' in functional_cache) and
-        ('magnitude_norf' in functional_cache) and
-        config.workflow.thermal_denoise_method
+        ('norf' not in config.workflow.ignore)
+        and ('phase_norf' in functional_cache)
+        and ('magnitude_norf' in functional_cache)
+        and config.workflow.thermal_denoise_method
     )
     if has_norf:
         from fmripost_phase.interfaces.complex import ConcatenateNoise, SplitNoise
