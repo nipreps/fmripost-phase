@@ -34,21 +34,21 @@ from nipype.interfaces.base import (
 )
 
 
-class _RealImaginaryToPolarInputSpec(BaseInterfaceInputSpec):
+class _CartesianToPolarInputSpec(BaseInterfaceInputSpec):
     real = File(exists=True, desc='Real-valued image')
     imaginary = File(exists=True, desc='Imaginary-valued image')
 
 
-class _RealImaginaryToPolarOutputSpec(TraitedSpec):
+class _CartesianToPolarOutputSpec(TraitedSpec):
     magnitude = File(exists=True, desc='Magnitude image')
     phase = File(exists=True, desc='Phase image')
 
 
-class RealImaginaryToPolar(SimpleInterface):
+class CartesianToPolar(SimpleInterface):
     """Convert a complex-valued image into real and imaginary images."""
 
-    input_spec = _RealImaginaryToPolarInputSpec
-    output_spec = _RealImaginaryToPolarOutputSpec
+    input_spec = _CartesianToPolarInputSpec
+    output_spec = _CartesianToPolarOutputSpec
 
     def _run_interface(self, runtime):
         from fmripost_phase.utils.complex import to_mag, to_phase
@@ -69,21 +69,21 @@ class RealImaginaryToPolar(SimpleInterface):
         return runtime
 
 
-class _PolarToRealImaginaryInputSpec(BaseInterfaceInputSpec):
+class _PolarToCartesianInputSpec(BaseInterfaceInputSpec):
     magnitude = File(exists=True, mandatory=True, desc='Magnitude image')
     phase = File(exists=True, mandatory=True, desc='Phase image')
 
 
-class _PolarToRealImaginaryOutputSpec(TraitedSpec):
+class _PolarToCartesianOutputSpec(TraitedSpec):
     real = File(exists=True, desc='Real-valued image')
     imaginary = File(exists=True, desc='Imaginary-valued image')
 
 
-class PolarToRealImaginary(SimpleInterface):
+class PolarToCartesian(SimpleInterface):
     """Convert magnitude and phase images into real and imaginary images."""
 
-    input_spec = _PolarToRealImaginaryInputSpec
-    output_spec = _PolarToRealImaginaryOutputSpec
+    input_spec = _PolarToCartesianInputSpec
+    output_spec = _PolarToCartesianOutputSpec
 
     def _run_interface(self, runtime):
         from fmripost_phase.utils.complex import to_imag, to_real

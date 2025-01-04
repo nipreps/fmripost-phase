@@ -86,10 +86,7 @@ def init_phase_regression_wf(bold_file, metadata):
     from nipype.pipeline import engine as pe
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
-    from fmripost_phase.interfaces.complex import (
-        PolarToRealImaginary,
-        RealImaginaryToPolar,
-    )
+    from fmripost_phase.interfaces.complex import CartesianToPolar, PolarToCartesian
     from fmripost_phase.interfaces.regression import ODRFit
     from fmripost_phase.utils.utils import _get_wf_name
 
@@ -139,13 +136,13 @@ def init_phase_regression_wf(bold_file, metadata):
     workflow.connect([(drop_nss, determine_leg_order, [('phase_file', 'phase_file')])])
 
     # Convert polar data to real and imaginary data
-    convert_to_real_imaginary = pe.Node(
-        PolarToRealImaginary(),
-        name='convert_to_real_imaginary',
+    convert_to_cartesian = pe.Node(
+        PolarToCartesian(),
+        name='convert_to_cartesian',
     )
     workflow.connect([
-        (inputnode, convert_to_real_imaginary, [('bold_file', 'magnitude')]),
-        (drop_nss, convert_to_real_imaginary, [('phase_file', 'phase')]),
+        (inputnode, convert_to_cartesian, [('bold_file', 'magnitude')]),
+        (drop_nss, convert_to_cartesian, [('phase_file', 'phase')]),
     ])  # fmt:skip
 
     # Apply motion correction transform from magnitude processing to real and imaginary files.
@@ -155,7 +152,7 @@ def init_phase_regression_wf(bold_file, metadata):
         name='apply_motion_correction',
     )
     workflow.connect([
-        (convert_to_real_imaginary, apply_motion_correction, [
+        (convert_to_cartesian, apply_motion_correction, [
             ('real', 'real'),
             ('imaginary', 'imaginary'),
         ]),
@@ -163,7 +160,7 @@ def init_phase_regression_wf(bold_file, metadata):
 
     # Combine motion-corrected real and imaginary files into polar data.
     convert_to_polar = pe.Node(
-        RealImaginaryToPolar(),
+        CartesianToPolar(),
         name='convert_to_polar',
     )
     workflow.connect([
