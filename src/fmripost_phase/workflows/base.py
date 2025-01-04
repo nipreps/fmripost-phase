@@ -463,6 +463,13 @@ def init_single_run_wf(bold_file):
     else:
         workflow.connect([(denoise_buffer, stc_buffer, [('magnitude', 'bold_file')])])
 
+    remove_mag_nss = pe.Node(
+        niu.IdentityInterface(fields=['bold_file', 'skip_vols']),
+        name='remove_mag_nss',
+    )
+    remove_mag_nss.inputs.skip_vols = skip_vols
+    workflow.connect([(stc_buffer, remove_mag_nss, [('bold_file', 'bold_file')])])
+
     mag_boldref_wf = init_bold_volumetric_resample_wf(
         metadata=bold_metadata,
         fieldmap_id=None,  # XXX: Ignoring the field map for now
@@ -476,7 +483,7 @@ def init_single_run_wf(bold_file):
     mag_boldref_wf.inputs.inputnode.bold_ref_file = functional_cache['bold_mask_native']
 
     workflow.connect([
-        (stc_buffer, mag_boldref_wf, [('bold_file', 'inputnode.bold_file')]),
+        (remove_mag_nss, mag_boldref_wf, [('bold_file', 'inputnode.bold_file')]),
         # XXX: Ignoring the field map for now
         # (inputnode, mag_boldref_wf, [
         #     ('fmap_ref', 'inputnode.fmap_ref'),
@@ -508,7 +515,7 @@ def init_single_run_wf(bold_file):
         omp_nthreads=omp_nthreads,
         mem_gb=mem_gb,
         jacobian='fmap-jacobian' not in config.workflow.ignore,
-        name='mag_boldref_wf',
+        name='phase_boldref_wf',
     )
     phase_boldref_wf.inputs.inputnode.motion_xfm = functional_cache['hmc']
     phase_boldref_wf.inputs.inputnode.boldref2fmap_xfm = functional_cache['boldref2fmap']
