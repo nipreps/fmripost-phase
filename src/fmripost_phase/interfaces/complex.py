@@ -45,7 +45,7 @@ class _CartesianToPolarOutputSpec(TraitedSpec):
 
 
 class CartesianToPolar(SimpleInterface):
-    """Convert a complex-valued image into real and imaginary images."""
+    """Convert Cartesian (real and imaginary) images into polar (magnitude and phase) images."""
 
     input_spec = _CartesianToPolarInputSpec
     output_spec = _CartesianToPolarOutputSpec
@@ -80,7 +80,7 @@ class _PolarToCartesianOutputSpec(TraitedSpec):
 
 
 class PolarToCartesian(SimpleInterface):
-    """Convert magnitude and phase images into real and imaginary images."""
+    """Convert polar (magnitude and phase) images into Cartesian (real and imaginary) images."""
 
     input_spec = _PolarToCartesianInputSpec
     output_spec = _PolarToCartesianOutputSpec
@@ -104,19 +104,24 @@ class PolarToCartesian(SimpleInterface):
         return runtime
 
 
-class _Phase2RadiansInputSpec(BaseInterfaceInputSpec):
-    in_file = File(exists=True, mandatory=True, desc='input (wrapped) phase map')
+class _Scale2RadiansInputSpec(BaseInterfaceInputSpec):
+    in_file = File(exists=True, mandatory=True, desc='Phase image in arbitrary units')
+    scale = traits.Enum(
+        'pi',
+        '2pi',
+        desc='Whether to scale between -pi to pi (pi) or 0 to 2*pi (2pi)',
+    )
 
 
-class _Phase2RadiansOutputSpec(TraitedSpec):
-    out_file = File(desc='the phase map in the range -3.14 - 3.14')
+class _Scale2RadiansOutputSpec(TraitedSpec):
+    out_file = File(desc='Phase image in radians (-pi to pi or 0 to 2*pi)')
 
 
-class Phase2Radians(SimpleInterface):
-    """Convert a phase map given in a.u. (e.g., 0-4096) to radians (-pi to pi)."""
+class Scale2Radians(SimpleInterface):
+    """Convert a phase map given in a.u. (e.g., 0-4096) to radians (-pi to pi or 0 to 2*pi)."""
 
-    input_spec = _Phase2RadiansInputSpec
-    output_spec = _Phase2RadiansOutputSpec
+    input_spec = _Scale2RadiansInputSpec
+    output_spec = _Scale2RadiansOutputSpec
 
     def _run_interface(self, runtime):
         import nibabel as nb
@@ -128,16 +133,20 @@ class Phase2Radians(SimpleInterface):
 
         # Rescale to [0, 2*pi]
         data = (data - data.min()) * (2 * np.pi / (data.max() - data.min()))
-        # Rescale to [-pi, pi]
-        data = data - np.pi
+        if self.inputs.scale == 'pi':
+            # Rescale to [-pi, pi]
+            data = data - np.pi
 
-        # Round to float32 and clip
-        data = np.clip(np.float32(data), -np.pi, np.pi)
+            # Round to float32 and clip
+            data = np.clip(np.float32(data), -np.pi, np.pi)
+        else:
+            # Round to float32 and clip
+            data = np.clip(np.float32(data), 0, 2 * np.pi)
 
         hdr.set_data_dtype(np.float32)
         hdr.set_xyzt_units('mm')
 
-        self._results['out_file'] = os.path.abspath(os.path.join(runtime.cwd, 'phase_rad.nii.gz'))
+        self._results['out_file'] = os.path.abspath(os.path.join(runtime.cwd, 'radians.nii.gz'))
         nb.Nifti1Image(data, None, hdr).to_filename(self._results['out_file'])
         return runtime
 

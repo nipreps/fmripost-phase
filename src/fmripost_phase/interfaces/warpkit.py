@@ -21,3 +21,253 @@
 #     https://www.nipreps.org/community/licensing/
 #
 """Interfaces for the warpkit toolbox."""
+import os
+
+from nipype.interfaces.base import (
+    CommandLine,
+    CommandLineInputSpec,
+    File,
+    TraitedSpec,
+    traits,
+)
+
+
+class _MEDICInputSpec(CommandLineInputSpec):
+    mag_files = traits.List(
+        File(exists=True),
+        argstr='--magnitude %s',
+        mandatory=True,
+        minlen=2,
+        desc='Magnitude image(s) to verify registration',
+    )
+    phase_files = traits.List(
+        File(exists=True),
+        argstr='--phase %s',
+        mandatory=True,
+        minlen=2,
+        desc='Phase image(s) to verify registration',
+    )
+    metadata = traits.List(
+        File(exists=True),
+        argstr='--metadata %s',
+        mandatory=True,
+        minlen=2,
+        desc='Metadata corresponding to the inputs',
+    )
+    prefix = traits.Str(
+        'medic',
+        argstr='--out_prefix %s',
+        usedefault=True,
+        desc='Prefix for output files',
+    )
+    noise_frames = traits.Int(
+        0,
+        argstr='--noiseframes %d',
+        usedefault=True,
+        desc='Number of noise frames to remove',
+    )
+    n_cpus = traits.Int(
+        4,
+        argstr='--n_cpus %d',
+        usedefault=True,
+        desc='Number of CPUs to use',
+    )
+    debug = traits.Bool(
+        False,
+        argstr='--debug',
+        usedefault=True,
+        desc='Enable debugging output',
+    )
+    wrap_limit = traits.Bool(
+        False,
+        argstr='--wrap_limit',
+        usedefault=True,
+        desc='Turns off some heuristics for phase unwrapping',
+    )
+
+
+class _MEDICOutputSpec(TraitedSpec):
+    native_field_map = File(
+        exists=True,
+        desc='4D native (distorted) space field map in Hertz',
+    )
+    displacement_map = File(
+        exists=True,
+        desc='4D displacement map in millimeters',
+    )
+    field_map = File(
+        exists=True,
+        desc='4D undistorted field map in Hertz',
+    )
+
+
+class MEDIC(CommandLine):
+    """Run MEDIC."""
+
+    _cmd = 'medic'
+    input_spec = _MEDICInputSpec
+    output_spec = _MEDICOutputSpec
+
+    def _list_outputs(self):
+        outputs = self._outputs().get()
+        out_dir = os.getcwd()
+        outputs['native_field_map'] = os.path.join(
+            out_dir,
+            f'{self.inputs.prefix}_fieldmaps_native.nii',
+        )
+        outputs['displacement_map'] = os.path.join(
+            out_dir,
+            f'{self.inputs.prefix}_displacementmaps.nii',
+        )
+        outputs['field_map'] = os.path.join(out_dir, f'{self.inputs.prefix}_fieldmaps.nii')
+        return outputs
+
+
+class _WarpkitUnwrapInputSpec(CommandLineInputSpec):
+    mag_files = traits.List(
+        File(exists=True),
+        argstr='--magnitude %s',
+        mandatory=True,
+        minlen=2,
+        desc='Magnitude image(s) to verify registration',
+    )
+    phase_files = traits.List(
+        File(exists=True),
+        argstr='--phase %s',
+        mandatory=True,
+        minlen=2,
+        desc='Phase image(s) to verify registration',
+    )
+    metadata = traits.List(
+        File(exists=True),
+        argstr='--metadata %s',
+        mandatory=True,
+        minlen=2,
+        desc='Metadata corresponding to the inputs',
+    )
+    prefix = traits.Str(
+        'medic',
+        argstr='--out_prefix %s',
+        usedefault=True,
+        desc='Prefix for output files',
+    )
+    noise_frames = traits.Int(
+        0,
+        argstr='--noiseframes %d',
+        usedefault=True,
+        desc='Number of noise frames to remove',
+    )
+    n_cpus = traits.Int(
+        4,
+        argstr='--n_cpus %d',
+        usedefault=True,
+        desc='Number of CPUs to use',
+    )
+    debug = traits.Bool(
+        False,
+        argstr='--debug',
+        usedefault=True,
+        desc='Enable debugging output',
+    )
+    wrap_limit = traits.Bool(
+        False,
+        argstr='--wrap_limit',
+        usedefault=True,
+        desc='Turns off some heuristics for phase unwrapping',
+    )
+
+
+class _WarpkitUnwrapOutputSpec(TraitedSpec):
+    native_field_map = File(
+        exists=True,
+        desc='4D native (distorted) space field map in Hertz',
+    )
+    displacement_map = File(
+        exists=True,
+        desc='4D displacement map in millimeters',
+    )
+    field_map = File(
+        exists=True,
+        desc='4D undistorted field map in Hertz',
+    )
+
+
+class WarpkitUnwrap(CommandLine):
+    """Unwrap multi-echo phase data with warpkit."""
+
+    _cmd = 'medic'
+    input_spec = _WarpkitUnwrapInputSpec
+    output_spec = _WarpkitUnwrapOutputSpec
+
+    def _list_outputs(self):
+        outputs = self._outputs().get()
+        out_dir = os.getcwd()
+        outputs['native_field_map'] = os.path.join(
+            out_dir,
+            f'{self.inputs.prefix}_fieldmaps_native.nii',
+        )
+        outputs['displacement_map'] = os.path.join(
+            out_dir,
+            f'{self.inputs.prefix}_displacementmaps.nii',
+        )
+        outputs['field_map'] = os.path.join(out_dir, f'{self.inputs.prefix}_fieldmaps.nii')
+        return outputs
+
+
+class _ROMEOUnwrapInputSpec(CommandLineInputSpec):
+    phase = File(
+        exists=True,
+        argstr='--phase %s',
+        mandatory=True,
+        desc='Phase image',
+    )
+    magnitude = File(
+        exists=True,
+        argstr='--magnitude %s',
+        mandatory=True,
+        desc='Magnitude image',
+    )
+    mask = traits.Enum(
+        'nomask',
+        'robustmask',
+        argstr='--mask %s',
+        usedefault=True,
+    )
+    echo_times = traits.Float(
+        argstr='--echo-times epi %s',
+        desc=(
+            'Echo time(s) for input data, in milliseconds(?). '
+            'Can use "epi <echo time>" for single-echo data.'
+        ),
+    )
+    no_scale = traits.Bool(
+        argstr='--no-rescale',
+        desc='Deactivate rescaling of input phase to radians',
+    )
+
+
+class _ROMEOUnwrapOutputSpec(TraitedSpec):
+    unwrapped = File(
+        exists=True,
+        desc='Unwrapped phase data',
+    )
+
+
+class ROMEOUnwrap(CommandLine):
+    """Unwrap single-echo phase data with ROMEO.
+
+    From the ROMEO documentation, for a single-echo fMRI file,
+    we should use:
+
+    >>> romeo -p ph.nii -m mag.nii -k nomask -t epi -o outputdir
+    """
+
+    _cmd = 'romeo'
+    input_spec = _ROMEOUnwrapInputSpec
+    output_spec = _ROMEOUnwrapOutputSpec
+
+    def _list_outputs(self):
+        outputs = self._outputs().get()
+        out_dir = os.getcwd()
+        outputs['unwrapped'] = os.path.join(out_dir, 'unwrapped.nii')
+        return outputs

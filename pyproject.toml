@@ -26,6 +26,7 @@ dependencies = [
   "sdcflows",
   "smriprep",
   "typer",
+  "warpkit == 0.1.1",
 ]
 dynamic = ["version"]
 

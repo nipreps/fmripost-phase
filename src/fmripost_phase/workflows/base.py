@@ -284,8 +284,10 @@ def init_single_run_wf(bold_file):
     from niworkflows.interfaces.header import ValidateImage
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
-    from fmripost_phase.interfaces.complex import Phase2Radians
+    from fmripost_phase.interfaces.complex import Scale2Radians
     from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
+    from fmripost_phase.interfaces.misc import RemoveNSS
+    from fmripost_phase.interfaces.warpkit import ROMEOUnwrap, WarpkitUnwrap
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
     from fmripost_phase.workflows.confounds import init_bold_confs_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
@@ -298,6 +300,7 @@ def init_single_run_wf(bold_file):
 
     bold_metadata = config.execution.layout.get_metadata(bold_file)
     mem_gb = estimate_bold_mem_usage(bold_file)[1]
+    multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
     entities = extract_entities(bold_file)
 
@@ -353,10 +356,35 @@ def init_single_run_wf(bold_file):
             )
         skip_vols = get_nss(functional_cache['confounds'])
 
+    inputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                'magnitude_raw',
+                'phase_raw',
+                'magnitude_norf',
+                'phase_norf',
+                'hmc',
+                'boldref2fmap',
+                'bold_mask_native',
+                'confounds',
+            ],
+        ),
+        name='inputnode',
+    )
+    inputnode.inputs.magnitude_raw = functional_cache['magnitude_raw']
+    inputnode.inputs.phase_raw = functional_cache['phase_raw']
+    inputnode.inputs.magnitude_norf = functional_cache['magnitude_norf']
+    inputnode.inputs.phase_norf = functional_cache['phase_norf']
+    inputnode.inputs.hmc = functional_cache['hmc']
+    inputnode.inputs.boldref2fmap = functional_cache['boldref2fmap']
+    inputnode.inputs.bold_mask_native = functional_cache['bold_mask_native']
+    inputnode.inputs.confounds = functional_cache['confounds']
+
     validate_bold = pe.Node(
-        ValidateImage(in_file=functional_cache['magnitude_raw']),
+        ValidateImage(),
         name='validate_bold',
     )
+    workflow.connect([(inputnode, validate_bold, [('magnitude_raw', 'in_file')])])
 
     phase_buffer = pe.Node(
         niu.IdentityInterface(fields=['phase', 'phase_norf']),
@@ -373,16 +401,19 @@ def init_single_run_wf(bold_file):
 
         # Concatenate phase and noRF data before rescaling
         concatenate_phase = pe.Node(
-            ConcatenateNoise(
-                in_file=functional_cache['phase_raw'],
-                noise_file=functional_cache['phase_norf'],
-            ),
+            ConcatenateNoise(),
             name='concatenate_phase',
         )
+        workflow.connect([
+            (inputnode, concatenate_phase, [
+                ('phase_raw', 'in_file'),
+                ('phase_norf', 'noise_file'),
+            ]),
+        ])  # fmt:skip
 
-        # Rescale phase data to radians
+        # Rescale phase data to radians (-pi to pi)
         phase_to_radians = pe.Node(
-            Phase2Radians(),
+            Scale2Radians(scale='pi'),
             name='phase_to_radians',
         )
         workflow.connect([(concatenate_phase, phase_to_radians, [('out', 'in_file')])])
@@ -401,13 +432,15 @@ def init_single_run_wf(bold_file):
             ]),
         ])  # fmt:skip
     else:
-        # Rescale phase data to radians
+        # Rescale phase data to radians (-pi to pi)
         phase_to_radians = pe.Node(
-            Phase2Radians(),
+            Scale2Radians(scale='pi'),
             name='phase_to_radians',
         )
-        phase_to_radians.inputs.in_file = functional_cache['phase_raw']
-        workflow.connect([(phase_to_radians, phase_buffer, [('out_file', 'phase')])])
+        workflow.connect([
+            (inputnode, phase_to_radians, [('phase_raw', 'in_file')]),
+            (phase_to_radians, phase_buffer, [('out_file', 'phase')]),
+        ])  # fmt:skip
 
     denoise_buffer = pe.Node(
         niu.IdentityInterface(fields=['magnitude', 'phase']),
@@ -421,10 +454,11 @@ def init_single_run_wf(bold_file):
         )
         if has_norf:
             validate_norf = pe.Node(
-                ValidateImage(in_file=functional_cache['magnitude_norf']),
+                ValidateImage(),
                 name='validate_norf',
             )
             workflow.connect([
+                (inputnode, validate_norf, [('magnitude_norf', 'in_file')]),
                 (validate_norf, denoise_wf, [('out_file', 'inputnode.magnitude_norf')]),
                 (phase_buffer, denoise_wf, [('phase_norf', 'inputnode.phase_norf')]),
             ])  # fmt:skip
@@ -443,7 +477,7 @@ def init_single_run_wf(bold_file):
             (phase_buffer, denoise_buffer, [('phase', 'phase')]),
         ])  # fmt:skip
 
-    # Warp magnitude data to boldref space
+    # Apply slice timing correction, if requested
     stc_buffer = pe.Node(
         niu.IdentityInterface(fields=['bold_file']),
         name='stc_buffer',
@@ -463,13 +497,48 @@ def init_single_run_wf(bold_file):
     else:
         workflow.connect([(denoise_buffer, stc_buffer, [('magnitude', 'bold_file')])])
 
+    # Remove non-steady-state volumes
     remove_mag_nss = pe.Node(
-        niu.IdentityInterface(fields=['bold_file', 'skip_vols']),
+        RemoveNSS(skip_vols=skip_vols),
         name='remove_mag_nss',
     )
-    remove_mag_nss.inputs.skip_vols = skip_vols
-    workflow.connect([(stc_buffer, remove_mag_nss, [('bold_file', 'bold_file')])])
+    workflow.connect([(stc_buffer, remove_mag_nss, [('bold_file', 'in_file')])])
 
+    remove_phase_nss = pe.Node(
+        RemoveNSS(skip_vols=skip_vols),
+        name='remove_phase_nss',
+    )
+    workflow.connect([(denoise_buffer, remove_phase_nss, [('phase', 'in_file')])])
+
+    # Unwrap phase with warpkit (multi-echo) or ROMEO (single-echo)
+    if multiecho:
+        # Rescale phase to 0 to 2*pi before unwrapping
+        phase_to_radians2 = pe.Node(
+            Scale2Radians(scale='2pi'),
+            name='phase_to_radians2',
+        )
+        workflow.connect([(remove_phase_nss, phase_to_radians2, [('out_file', 'in_file')])])
+
+        unwrap_phase = pe.Node(
+            WarpkitUnwrap(),
+            name='unwrap_phase',
+        )
+        workflow.connect([(phase_to_radians2, unwrap_phase, [('out_file', 'phase')])])
+    else:
+        # ROMEO uses data in radians (-pi to pi)
+        unwrap_phase = pe.Node(
+            ROMEOUnwrap(
+                no_scale=True,
+                echo_times=bold_metadata['EchoTime'] * 1000,
+                mask='nomask',
+            ),
+            name='unwrap_phase',
+        )
+        workflow.connect([(remove_phase_nss, unwrap_phase, [('out_file', 'phase')])])
+
+    workflow.connect([(remove_mag_nss, unwrap_phase, [('out_file', 'magnitude')])])
+
+    # Warp magnitude and phase data to BOLD reference space
     mag_boldref_wf = init_bold_volumetric_resample_wf(
         metadata=bold_metadata,
         fieldmap_id=None,  # XXX: Ignoring the field map for now
@@ -478,12 +547,16 @@ def init_single_run_wf(bold_file):
         jacobian='fmap-jacobian' not in config.workflow.ignore,
         name='mag_boldref_wf',
     )
-    mag_boldref_wf.inputs.inputnode.motion_xfm = functional_cache['hmc']
-    mag_boldref_wf.inputs.inputnode.boldref2fmap_xfm = functional_cache['boldref2fmap']
-    mag_boldref_wf.inputs.inputnode.bold_ref_file = functional_cache['bold_mask_native']
+    workflow.connect([
+        (inputnode, mag_boldref_wf, [
+            ('hmc', 'motion_xfm'),
+            ('boldref2fmap', 'boldref2fmap_xfm'),
+            ('bold_mask_native', 'bold_ref_file'),
+        ]),
+    ])  # fmt:skip
 
     workflow.connect([
-        (remove_mag_nss, mag_boldref_wf, [('bold_file', 'inputnode.bold_file')]),
+        (remove_mag_nss, mag_boldref_wf, [('out_file', 'inputnode.bold_file')]),
         # XXX: Ignoring the field map for now
         # (inputnode, mag_boldref_wf, [
         #     ('fmap_ref', 'inputnode.fmap_ref'),
@@ -491,22 +564,6 @@ def init_single_run_wf(bold_file):
         #     ('fmap_id', 'inputnode.fmap_id'),
         # ]),
     ])  # fmt:skip
-
-    # Minimally process phase data
-    # Remove non-steady-state volumes
-    remove_phase_nss = pe.Node(
-        niu.IdentityInterface(fields=['phase_file', 'skip_vols']),
-        name='remove_phase_nss',
-    )
-    remove_phase_nss.inputs.skip_vols = skip_vols
-    workflow.connect([(denoise_buffer, remove_phase_nss, [('phase', 'phase_file')])])
-
-    # Unwrap with warpkit
-    unwrap_wf = pe.Node(
-        niu.IdentityInterface(fields=['phase_file']),
-        name='unwrap_wf',
-    )
-    workflow.connect([(remove_phase_nss, unwrap_wf, [('phase_file', 'phase_file')])])
 
     # Warp to boldref space (motion correction + distortion correction[?] + fmap-to-boldref)
     phase_boldref_wf = init_bold_volumetric_resample_wf(
@@ -517,10 +574,14 @@ def init_single_run_wf(bold_file):
         jacobian='fmap-jacobian' not in config.workflow.ignore,
         name='phase_boldref_wf',
     )
-    phase_boldref_wf.inputs.inputnode.motion_xfm = functional_cache['hmc']
-    phase_boldref_wf.inputs.inputnode.boldref2fmap_xfm = functional_cache['boldref2fmap']
-    phase_boldref_wf.inputs.inputnode.bold_ref_file = functional_cache['bold_mask_native']
-    workflow.connect([(unwrap_wf, phase_boldref_wf, [('out_file', 'inputnode.bold_file')])])
+    workflow.connect([
+        (inputnode, phase_boldref_wf, [
+            ('hmc', 'motion_xfm'),
+            ('boldref2fmap', 'boldref2fmap_xfm'),
+            ('bold_mask_native', 'bold_ref_file'),
+        ]),
+        (unwrap_phase, phase_boldref_wf, [('unwrapped', 'inputnode.bold_file')]),
+    ])  # fmt:skip
 
     if config.workflow.retroicor:
         # Run RETROICOR on the magnitude and phase data
@@ -531,10 +592,8 @@ def init_single_run_wf(bold_file):
     if config.workflow.regression_method:
         # Now denoise the BOLD data using phase regression
         phase_regression_wf = init_phase_regression_wf(bold_file=bold_file, metadata=bold_metadata)
-        phase_regression_wf.inputs.inputnode.skip_vols = skip_vols
-        phase_regression_wf.inputs.inputnode.bold_mask = functional_cache['bold_mask_native']
-
         workflow.connect([
+            (inputnode, phase_regression_wf, [('bold_mask_native', 'bold_mask')]),
             (phase_boldref_wf, phase_regression_wf, [
                 ('outputnode.bold_file', 'inputnode.phase_file'),
             ]),
@@ -590,8 +649,8 @@ def init_single_run_wf(bold_file):
         name='bold_confounds_wf',
     )
     bold_confounds_wf.inputs.inputnode.skip_vols = skip_vols
-    bold_confounds_wf.inputs.inputnode.bold_mask = functional_cache['bold_mask_native']
     workflow.connect([
+        (inputnode, bold_confounds_wf, [('bold_mask_native', 'bold_mask')]),
         (phase_boldref_wf, bold_confounds_wf, [('outputnode.bold_file', 'inputnode.phase')]),
     ])  # fmt:skip
 
