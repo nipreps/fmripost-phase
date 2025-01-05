@@ -25,32 +25,30 @@
 from fmripost_phase import config
 
 
-def init_phase_regression_wf(bold_file, metadata):
+def init_phase_regression_wf(name_source, metadata):
     """Build a workflow that denoises a BOLD series using phase regression.
 
     Parameters
     ----------
-    bold_file : str
+    name_source : str
         Path to the raw magnitude BOLD series file.
     metadata : dict
         Metadata dictionary from BIDS JSON file.
 
     Inputs
     ------
-    bold_file : str
+    magnitude : str
         Path to the magnitude BOLD series file after minimal preprocessing, in boldref space.
-    phase_file : str
+    phase : str
         Path to the unwrapped phase BOLD series file, in radians.
     bold_mask : str
         Path to the brain mask of the magnitude BOLD series in boldref space.
-    skip_vols : int
-        Number of non-steady-state volumes to remove from the phase data.
 
     Outputs
     -------
-    denoised_bold_file : str
+    denoised_magnitude : str
         Path to the denoised magnitude BOLD series file.
-    phase_file : str
+    phase : str
         Path to the fitted phase regression confound file.
 
     Notes
@@ -90,15 +88,14 @@ def init_phase_regression_wf(bold_file, metadata):
     from fmripost_phase.interfaces.regression import ODRFit
     from fmripost_phase.utils.utils import _get_wf_name
 
-    workflow = Workflow(name=_get_wf_name(bold_file, 'phase_regression'))
+    workflow = Workflow(name=_get_wf_name(name_source, 'phase_regression'))
 
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
-                'bold_file',
-                'phase_file',
+                'magnitude',
+                'phase',
                 'bold_mask',
-                'skip_vols',
                 'space',
                 'cohort',
                 'res',
@@ -109,31 +106,19 @@ def init_phase_regression_wf(bold_file, metadata):
     outputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
-                'denoised_bold_file',
-                'phase_file',
+                'denoised_magnitude',
+                'phase',
             ],
         ),
         name='outputnode',
     )
 
-    # Drop non-steady-state volumes from phase data
-    drop_nss = pe.Node(
-        niu.IdentityInterface(fields=['phase_file', 'skip_vols']),
-        name='drop_nss',
-    )
-    workflow.connect([
-        (inputnode, drop_nss, [
-            ('phase_file', 'phase_file'),
-            ('skip_vols', 'skip_vols'),
-        ]),
-    ])  # fmt:skip
-
     # Compute optimal order of Legendre polynomials
     determine_leg_order = pe.Node(
-        niu.IdentityInterface(fields=['phase_file']),
+        niu.IdentityInterface(fields=['phase']),
         name='determine_leg_order',
     )
-    workflow.connect([(drop_nss, determine_leg_order, [('phase_file', 'phase_file')])])
+    workflow.connect([(inputnode, determine_leg_order, [('phase', 'phase')])])
 
     # Convert polar data to real and imaginary data
     convert_to_cartesian = pe.Node(
@@ -141,8 +126,10 @@ def init_phase_regression_wf(bold_file, metadata):
         name='convert_to_cartesian',
     )
     workflow.connect([
-        (inputnode, convert_to_cartesian, [('bold_file', 'magnitude')]),
-        (drop_nss, convert_to_cartesian, [('phase_file', 'phase')]),
+        (inputnode, convert_to_cartesian, [
+            ('magnitude', 'magnitude'),
+            ('phase', 'phase'),
+        ]),
     ])  # fmt:skip
 
     # Apply motion correction transform from magnitude processing to real and imaginary files.
@@ -172,22 +159,22 @@ def init_phase_regression_wf(bold_file, metadata):
 
     # Detrend the unwrapped phase data using the Legendre polynomial order determined previously.
     detrend_phase = pe.Node(
-        niu.IdentityInterface(fields=['phase_file', 'order']),
+        niu.IdentityInterface(fields=['phase', 'order']),
         name='detrend_phase',
     )
     workflow.connect([
         (determine_leg_order, detrend_phase, [('order', 'order')]),
-        (convert_to_polar, detrend_phase, [('phase', 'phase_file')]),
+        (convert_to_polar, detrend_phase, [('phase', 'phase')]),
     ])  # fmt:skip
 
     # Apply brain mask from magnitude processing to phase data.
     apply_mask = pe.Node(
-        niu.IdentityInterface(fields=['phase_file', 'mask_file']),
+        niu.IdentityInterface(fields=['phase', 'mask_file']),
         name='apply_mask',
     )
     workflow.connect([
         (inputnode, apply_mask, [('bold_mask', 'mask_file')]),
-        (detrend_phase, apply_mask, [('phase_file', 'phase_file')]),
+        (detrend_phase, apply_mask, [('phase', 'phase')]),
     ])  # fmt:skip
 
     # ODR phase regression
@@ -197,13 +184,13 @@ def init_phase_regression_wf(bold_file, metadata):
     )
     workflow.connect([
         (inputnode, odr_regression, [
-            ('bold_file', 'magnitude'),
+            ('magnitude', 'magnitude'),
             ('bold_mask', 'mask'),
         ]),
-        (apply_mask, odr_regression, [('phase_file', 'phase')]),
+        (apply_mask, odr_regression, [('phase', 'phase')]),
         (odr_regression, outputnode, [
-            ('sim', 'denoised_bold_file'),
-            ('estimate', 'phase_file'),
+            ('sim', 'denoised_magnitude'),
+            ('estimate', 'phase'),
         ]),
     ])  # fmt:skip
 

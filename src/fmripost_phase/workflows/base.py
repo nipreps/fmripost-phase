@@ -552,9 +552,7 @@ def init_single_run_wf(bold_file):
         )
         workflow.connect([(remove_phase_nss, unwrap_phase, [('out_file', 'phase')])])
 
-    workflow.connect([
-        (remove_mag_nss, unwrap_phase, [('out_file', 'magnitude')]),
-    ])  # fmt:skip
+    workflow.connect([(remove_mag_nss, unwrap_phase, [('out_file', 'magnitude')])])
 
     # Warp magnitude and phase data to BOLD reference space
     mag_boldref_wf = init_bold_volumetric_resample_wf(
@@ -609,14 +607,12 @@ def init_single_run_wf(bold_file):
 
     if config.workflow.regression_method:
         # Now denoise the BOLD data using phase regression
-        phase_regression_wf = init_phase_regression_wf(bold_file=bold_file, metadata=bold_metadata)
+        phase_regression_wf = init_phase_regression_wf(name_source=bold_file, metadata=bold_metadata)
         workflow.connect([
             (inputnode, phase_regression_wf, [('bold_mask_native', 'bold_mask')]),
-            (phase_boldref_wf, phase_regression_wf, [
-                ('outputnode.bold_file', 'inputnode.phase_file'),
-            ]),
+            (phase_boldref_wf, phase_regression_wf, [('outputnode.bold_file', 'inputnode.phase')]),
             (mag_boldref_wf, phase_regression_wf, [
-                ('outputnode.bold_file', 'inputnode.bold_file'),
+                ('outputnode.bold_file', 'inputnode.magnitude'),
             ]),
         ])  # fmt:skip
 
