@@ -56,3 +56,34 @@ class RemoveNSS(SimpleInterface):
         self._results['out_file'] = os.path.abspath(os.path.join(runtime.cwd, 'cropped.nii.gz'))
         img.to_filename(self._results['out_file'])
         return runtime
+
+
+class _DictToJSONInputSpec(BaseInterfaceInputSpec):
+    in_dicts = traits.List(traits.Dict, desc='input dictionary')
+
+
+class _DictToJSONOutputSpec(TraitedSpec):
+    json_files = traits.List(File(exists=True), desc='output files')
+
+
+class DictToJSON(SimpleInterface):
+    """Remove non-steady-state volumes from a 4D NIfTI."""
+
+    input_spec = _DictToJSONInputSpec
+    output_spec = _DictToJSONOutputSpec
+
+    def _run_interface(self, runtime):
+        import json
+
+        json_files = []
+        for idx, in_dict in enumerate(self.inputs.in_dicts):
+            json_file = os.path.abspath(os.path.join(runtime.cwd, f'dict_{idx}.json'))
+
+            with open(json_file, 'w') as fobj:
+                json.dump(in_dict, fobj, indent=4, sort_keys=True)
+
+            json_files.append(json_file)
+
+        self._results['json_files'] = json_files
+
+        return runtime

@@ -286,7 +286,7 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.complex import Scale2Radians
     from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
-    from fmripost_phase.interfaces.misc import RemoveNSS
+    from fmripost_phase.interfaces.misc import DictToJSON, RemoveNSS
     from fmripost_phase.interfaces.warpkit import ROMEOUnwrap, WarpkitUnwrap
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
     from fmripost_phase.workflows.confounds import init_bold_confs_wf
@@ -519,11 +519,27 @@ def init_single_run_wf(bold_file):
         )
         workflow.connect([(remove_phase_nss, phase_to_radians2, [('out_file', 'in_file')])])
 
-        unwrap_phase = pe.Node(
-            WarpkitUnwrap(),
-            name='unwrap_phase',
+        # Convert metadata dictionaries to JSON files
+        metadata_to_jsons = pe.Node(
+            DictToJSON(),
+            name='metadata_to_jsons',
         )
-        workflow.connect([(phase_to_radians2, unwrap_phase, [('out_file', 'phase')])])
+        workflow.connect([(inputnode, metadata_to_jsons, [('metadata', 'in_dicts')])])
+
+        unwrap_phase = pe.Node(
+            WarpkitUnwrap(
+                noise_frames=0,
+                debug=False,
+                wrap_limit=False,
+                n_cpus=config.nipype.omp_nthreads,
+            ),
+            name='unwrap_phase',
+            n_procs=config.nipype.omp_nthreads,
+        )
+        workflow.connect([
+            (phase_to_radians2, unwrap_phase, [('out_file', 'phase')]),
+            (metadata_to_jsons, unwrap_phase, [('json_files', 'metadata')]),
+        ])  # fmt:skip
     else:
         # ROMEO uses data in radians (-pi to pi)
         unwrap_phase = pe.Node(
@@ -536,7 +552,9 @@ def init_single_run_wf(bold_file):
         )
         workflow.connect([(remove_phase_nss, unwrap_phase, [('out_file', 'phase')])])
 
-    workflow.connect([(remove_mag_nss, unwrap_phase, [('out_file', 'magnitude')])])
+    workflow.connect([
+        (remove_mag_nss, unwrap_phase, [('out_file', 'magnitude')]),
+    ])  # fmt:skip
 
     # Warp magnitude and phase data to BOLD reference space
     mag_boldref_wf = init_bold_volumetric_resample_wf(

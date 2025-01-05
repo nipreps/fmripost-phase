@@ -33,14 +33,14 @@ from nipype.interfaces.base import (
 
 
 class _MEDICInputSpec(CommandLineInputSpec):
-    mag_files = traits.List(
+    magnitude = traits.List(
         File(exists=True),
         argstr='--magnitude %s',
         mandatory=True,
         minlen=2,
         desc='Magnitude image(s) to verify registration',
     )
-    phase_files = traits.List(
+    phase = traits.List(
         File(exists=True),
         argstr='--phase %s',
         mandatory=True,
@@ -124,19 +124,19 @@ class MEDIC(CommandLine):
 
 
 class _WarpkitUnwrapInputSpec(CommandLineInputSpec):
-    mag_files = traits.List(
+    magnitude = traits.List(
         File(exists=True),
         argstr='--magnitude %s',
         mandatory=True,
         minlen=2,
         desc='Magnitude image(s) to verify registration',
     )
-    phase_files = traits.List(
+    phase = traits.List(
         File(exists=True),
         argstr='--phase %s',
         mandatory=True,
         minlen=2,
-        desc='Phase image(s) to verify registration',
+        desc='Phase image(s) to unwrap',
     )
     metadata = traits.List(
         File(exists=True),
@@ -146,7 +146,7 @@ class _WarpkitUnwrapInputSpec(CommandLineInputSpec):
         desc='Metadata corresponding to the inputs',
     )
     prefix = traits.Str(
-        'medic',
+        'warpkit',
         argstr='--out_prefix %s',
         usedefault=True,
         desc='Prefix for output files',
@@ -178,39 +178,27 @@ class _WarpkitUnwrapInputSpec(CommandLineInputSpec):
 
 
 class _WarpkitUnwrapOutputSpec(TraitedSpec):
-    native_field_map = File(
-        exists=True,
-        desc='4D native (distorted) space field map in Hertz',
-    )
-    displacement_map = File(
-        exists=True,
-        desc='4D displacement map in millimeters',
-    )
-    field_map = File(
-        exists=True,
-        desc='4D undistorted field map in Hertz',
+    unwrapped = traits.List(
+        File(exists=True),
+        desc='Unwrapped phase data',
     )
 
 
 class WarpkitUnwrap(CommandLine):
     """Unwrap multi-echo phase data with warpkit."""
 
-    _cmd = 'medic'
+    _cmd = 'warpkit_unwrap'
     input_spec = _WarpkitUnwrapInputSpec
     output_spec = _WarpkitUnwrapOutputSpec
 
     def _list_outputs(self):
         outputs = self._outputs().get()
         out_dir = os.getcwd()
-        outputs['native_field_map'] = os.path.join(
-            out_dir,
-            f'{self.inputs.prefix}_fieldmaps_native.nii',
-        )
-        outputs['displacement_map'] = os.path.join(
-            out_dir,
-            f'{self.inputs.prefix}_displacementmaps.nii',
-        )
-        outputs['field_map'] = os.path.join(out_dir, f'{self.inputs.prefix}_fieldmaps.nii')
+        out_prefix = os.path.join(out_dir, self.inputs.prefix)
+        outputs['unwrapped'] = [
+            f'{out_prefix}_echo-{i_echo + 1}_phase.nii.gz' for i_echo in
+            range(len(self.inputs.phase))
+        ]
         return outputs
 
 
