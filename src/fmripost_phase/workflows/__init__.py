@@ -22,6 +22,6 @@
 #
 """Workflow functions for fMRIPost-phase."""
 
-from fmripost_phase.workflows import base, regression
+from fmripost_phase.workflows import base, confounds, regression
 
-__all__ = ['base', 'regression']
+__all__ = ['base', 'confounds', 'regression']
