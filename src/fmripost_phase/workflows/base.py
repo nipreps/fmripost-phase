@@ -278,6 +278,7 @@ def init_single_run_wf(bold_file):
     from fmriprep.utils.bids import dismiss_echo
     from fmriprep.utils.misc import estimate_bold_mem_usage
     from fmriprep.workflows.bold.apply import init_bold_volumetric_resample_wf
+    from fmriprep.workflows.bold.outputs import init_ds_volumes_wf
     from fmriprep.workflows.bold.stc import init_bold_stc_wf
     from nipype.interfaces import utility as niu
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
@@ -301,6 +302,10 @@ def init_single_run_wf(bold_file):
     bold_metadata = config.execution.layout.get_metadata(bold_file)
     mem_gb = estimate_bold_mem_usage(bold_file)[1]
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
+
+    spaces = config.workflow.spaces
+    nonstd_spaces = set(spaces.get_nonstandard())
+    # freesurfer_spaces = spaces.get_fs_spaces()
 
     entities = extract_entities(bold_file)
 
@@ -684,6 +689,129 @@ def init_single_run_wf(bold_file):
             ('outputnode.confounds_metadata', 'meta_dict'),
         ]),
     ])  # fmt:skip
+
+    # TODO: Warp outputs to requested spaces
+    # 1. Unwrapped phase
+    # 2. Jolt
+    # 3. Jump
+    # 4. Phase-regression residuals
+    # 5. Phase-regression confounds
+    # Full derivatives, including resampled BOLD series
+    if nonstd_spaces.intersection(('anat', 'T1w')):
+        bold_anat_wf = init_bold_volumetric_resample_wf(
+            metadata=bold_metadata,
+            fieldmap_id=None,
+            omp_nthreads=omp_nthreads,
+            mem_gb=mem_gb,
+            jacobian='fmap-jacobian' not in config.workflow.ignore,
+            name='bold_anat_wf',
+        )
+        bold_anat_wf.inputs.inputnode.source_files = bold_file
+        bold_anat_wf.inputs.inputnode.space = 'anat'
+
+        workflow.connect([
+            (inputnode, bold_anat_wf, [
+                ('outputnode.bold_mask', 'inputnode.bold_mask'),
+                ('outputnode.coreg_boldref', 'inputnode.bold_ref'),
+                ('outputnode.boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
+                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+                ('outputnode.boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
+                ('outputnode.bold_file', 'inputnode.bold'),
+                ('outputnode.resampling_reference', 'inputnode.ref_file'),
+            ]),
+        ])  # fmt:skip
+
+        if config.workflow.unwrap_phase:
+            workflow.connect([
+                (phase_boldref_wf, bold_anat_wf, [('outputnode.out_file', 'inputnode.phase')]),
+            ])  # fmt:skip
+
+        if config.workflow.jolt:
+            workflow.connect([(calc_jolt, bold_anat_wf, [('out_file', 'inputnode.jolt')])])
+
+        if config.workflow.jump:
+            workflow.connect([(calc_jump, bold_anat_wf, [('out_file', 'inputnode.jump')])])
+
+        if config.workflow.regression_method:
+            workflow.connect([
+                (phase_regression_wf, bold_anat_wf, [
+                    ('outputnode.denoised_magnitude', 'inputnode.residuals'),
+                    ('outputnode.phase', 'inputnode.confounds'),
+                ]),
+            ])  # fmt:skip
+
+    if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
+        # Missing:
+        #  * Clipping BOLD after resampling
+        #  * Resampling parcellations
+        bold_std_wf = init_bold_volumetric_resample_wf(
+            metadata=bold_metadata,
+            fieldmap_id=None,
+            omp_nthreads=omp_nthreads,
+            mem_gb=mem_gb,
+            jacobian='fmap-jacobian' not in config.workflow.ignore,
+            name='bold_std_wf',
+        )
+        ds_bold_std_wf = init_ds_volumes_wf(
+            bids_root=str(config.execution.bids_dir),
+            output_dir=config.execution.output_dir,
+            multiecho=multiecho,
+            metadata=bold_metadata,
+            name='ds_bold_std_wf',
+        )
+        ds_bold_std_wf.inputs.inputnode.source_files = bold_file
+
+        workflow.connect([
+            (inputnode, bold_std_wf, [
+                ('std_t1w', 'inputnode.target_ref_file'),
+                ('std_mask', 'inputnode.target_mask'),
+                ('anat2std_xfm', 'inputnode.anat2std_xfm'),
+                ('std_resolution', 'inputnode.resolution'),
+                ('fmap_ref', 'inputnode.fmap_ref'),
+                ('fmap_coeff', 'inputnode.fmap_coeff'),
+                ('fmap_id', 'inputnode.fmap_id'),
+                ('outputnode.coreg_boldref', 'inputnode.bold_ref_file'),
+                ('outputnode.boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
+                ('outputnode.boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
+                ('outputnode.bold_minimal', 'inputnode.bold_file'),
+                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+            ]),
+            (inputnode, ds_bold_std_wf, [
+                ('anat2std_xfm', 'inputnode.anat2std_xfm'),
+                ('std_t1w', 'inputnode.template'),
+                ('std_space', 'inputnode.space'),
+                ('std_resolution', 'inputnode.resolution'),
+                ('std_cohort', 'inputnode.cohort'),
+                ('outputnode.bold_mask', 'inputnode.bold_mask'),
+                ('outputnode.coreg_boldref', 'inputnode.bold_ref'),
+                ('outputnode.boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
+                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+                ('outputnode.boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
+            ]),
+            (bold_std_wf, ds_bold_std_wf, [
+                ('outputnode.bold_file', 'inputnode.bold'),
+                ('outputnode.resampling_reference', 'inputnode.ref_file'),
+            ]),
+        ])  # fmt:skip
+
+        if config.workflow.unwrap_phase:
+            workflow.connect([
+                (phase_boldref_wf, ds_bold_std_wf, [('outputnode.out_file', 'inputnode.phase')]),
+            ])  # fmt:skip
+
+        if config.workflow.jolt:
+            workflow.connect([(calc_jolt, ds_bold_std_wf, [('out_file', 'inputnode.jolt')])])
+
+        if config.workflow.jump:
+            workflow.connect([(calc_jump, ds_bold_std_wf, [('out_file', 'inputnode.jump')])])
+
+        if config.workflow.regression_method:
+            workflow.connect([
+                (phase_regression_wf, ds_bold_std_wf, [
+                    ('outputnode.denoised_magnitude', 'inputnode.residuals'),
+                    ('outputnode.phase', 'inputnode.confounds'),
+                ]),
+            ])  # fmt:skip
 
     # Fill-in datasinks seen so far
     for node in workflow.list_node_names():

@@ -189,14 +189,15 @@ def _build_parser(**kwargs):
         help=(
             'Exact or maximum number of GIFT components to estimate '
             '(positive = exact, negative = maximum). '
-            'GIFT is only applied if this is set to something other than 0.'
+            'GIFT is only applied if this is set to something other than 0. '
+            'NOT YET IMPLEMENTED!'
         ),
     )
     g_phase.add_argument(
         '--retroicor',
         action='store_true',
         default=False,
-        help='Apply RETROICOR to complex-valued data.',
+        help='Apply RETROICOR to complex-valued data. NOT YET IMPLEMENTED!',
     )
     g_phase.add_argument(
         '--thermal-denoise-method',
