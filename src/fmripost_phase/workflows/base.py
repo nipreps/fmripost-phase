@@ -636,6 +636,7 @@ def init_single_run_wf(bold_file):
         ds_jolt = pe.Node(
             DerivativesDataSink(
                 source_file=bold_file,
+                part='phase',
                 desc='jolt',
             ),
             name='ds_jolt',
@@ -653,6 +654,7 @@ def init_single_run_wf(bold_file):
         ds_jump = pe.Node(
             DerivativesDataSink(
                 source_file=bold_file,
+                part='phase',
                 desc='jump',
             ),
             name='ds_jump',
@@ -680,7 +682,7 @@ def init_single_run_wf(bold_file):
         DerivativesDataSink(
             desc='confounds',
             suffix='timeseries',
-            dismiss_entities=dismiss_echo(),
+            dismiss_entities=dismiss_echo(['part']),
         ),
         name='ds_confounds',
         run_without_submitting=True,
@@ -693,91 +695,157 @@ def init_single_run_wf(bold_file):
         ]),
     ])  # fmt:skip
 
-    # TODO: Warp outputs to requested spaces
+    # TODO: Warp outputs from boldref to requested spaces
     # 1. Unwrapped phase
     # 2. Jolt
     # 3. Jump
     # 4. Phase-regression residuals
     # 5. Phase-regression confounds
     # Full derivatives, including resampled BOLD series
+    additional_fields = []
+    if config.workflow.unwrap_phase:
+        additional_fields.append('phase')
+
+    if config.workflow.jolt:
+        additional_fields.append('jolt')
+
+    if config.workflow.jump:
+        additional_fields.append('jump')
+
+    if config.workflow.regression_method:
+        additional_fields.extend(['residuals', 'confounds'])
+
     if nonstd_spaces.intersection(('anat', 'T1w')):
-        bold_anat_wf = init_bold_volumetric_resample_wf(
+        boldref_to_anat_wf = init_bold_volumetric_resample_wf(
             metadata=bold_metadata,
             fieldmap_id=None,
+            fields=additional_fields,
             omp_nthreads=omp_nthreads,
             mem_gb=mem_gb,
-            jacobian='fmap-jacobian' not in config.workflow.ignore,
-            name='bold_anat_wf',
+            jacobian=False,
+            name='boldref_to_anat_wf',
         )
-        bold_anat_wf.inputs.inputnode.source_files = bold_file
-        bold_anat_wf.inputs.inputnode.space = 'anat'
+        boldref_to_anat_wf.inputs.inputnode.source_files = bold_file
+        boldref_to_anat_wf.inputs.inputnode.space = 'anat'
 
         workflow.connect([
-            (inputnode, bold_anat_wf, [
-                ('outputnode.bold_mask', 'inputnode.bold_mask'),
-                ('outputnode.coreg_boldref', 'inputnode.bold_ref'),
-                ('outputnode.boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
-                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
-                ('outputnode.boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
-                ('outputnode.bold_file', 'inputnode.bold'),
-                ('outputnode.resampling_reference', 'inputnode.ref_file'),
+            (inputnode, boldref_to_anat_wf, [
+                ('bold_mask', 'inputnode.bold_mask'),
+                ('coreg_boldref', 'inputnode.bold_ref'),
+                ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
+                ('bold_file', 'inputnode.bold'),
+                ('resampling_reference', 'inputnode.ref_file'),
             ]),
         ])  # fmt:skip
 
         if config.workflow.unwrap_phase:
+            ds_phase_anat = pe.Node(
+                DerivativesDataSink(
+                    source_file=bold_file,
+                    part='phase',
+                    space='anat',
+                    desc='unwrap',
+                ),
+                name='ds_phase_anat',
+            )
             workflow.connect([
-                (phase_boldref_wf, bold_anat_wf, [('outputnode.out_file', 'inputnode.phase')]),
+                (phase_boldref_wf, boldref_to_anat_wf, [
+                    ('outputnode.out_file', 'inputnode.phase'),
+                ]),
+                (boldref_to_anat_wf, ds_phase_anat, [('outputnode.phase', 'in_file')]),
             ])  # fmt:skip
 
         if config.workflow.jolt:
-            workflow.connect([(calc_jolt, bold_anat_wf, [('out_file', 'inputnode.jolt')])])
+            ds_jolt_anat = pe.Node(
+                DerivativesDataSink(
+                    source_file=bold_file,
+                    part='phase',
+                    space='anat',
+                    desc='jolt',
+                ),
+                name='ds_jolt_anat',
+            )
+            workflow.connect([
+                (calc_jolt, boldref_to_anat_wf, [('out_file', 'inputnode.jolt')]),
+                (boldref_to_anat_wf, ds_jolt_anat, [('outputnode.jolt', 'in_file')]),
+            ])  # fmt:skip
 
         if config.workflow.jump:
-            workflow.connect([(calc_jump, bold_anat_wf, [('out_file', 'inputnode.jump')])])
+            ds_jump_anat = pe.Node(
+                DerivativesDataSink(
+                    source_file=bold_file,
+                    part='phase',
+                    space='anat',
+                    desc='jump',
+                ),
+                name='ds_jump_anat',
+            )
+            workflow.connect([
+                (calc_jump, boldref_to_anat_wf, [('out_file', 'inputnode.jump')]),
+                (boldref_to_anat_wf, ds_jump_anat, [('outputnode.jump', 'in_file')]),
+            ])  # fmt:skip
 
         if config.workflow.regression_method:
+            ds_residuals_anat = pe.Node(
+                DerivativesDataSink(
+                    source_file=bold_file,
+                    part='phase',
+                    space='anat',
+                    desc='residuals',
+                ),
+                name='ds_residuals_anat',
+            )
+            ds_confounds_anat = pe.Node(
+                DerivativesDataSink(
+                    source_file=bold_file,
+                    part='phase',
+                    space='anat',
+                    desc='confounds',
+                ),
+                name='ds_confounds_anat',
+            )
             workflow.connect([
-                (phase_regression_wf, bold_anat_wf, [
+                (phase_regression_wf, boldref_to_anat_wf, [
                     ('outputnode.denoised_magnitude', 'inputnode.residuals'),
                     ('outputnode.phase', 'inputnode.confounds'),
                 ]),
+                (boldref_to_anat_wf, ds_residuals_anat, [('outputnode.residuals', 'in_file')]),
+                (boldref_to_anat_wf, ds_confounds_anat, [('outputnode.confounds', 'in_file')]),
             ])  # fmt:skip
 
     if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
         # Missing:
         #  * Clipping BOLD after resampling
         #  * Resampling parcellations
-        bold_std_wf = init_bold_volumetric_resample_wf(
+        boldref_to_std_wf = init_bold_volumetric_resample_wf(
             metadata=bold_metadata,
             fieldmap_id=None,
+            fields=additional_fields,
             omp_nthreads=omp_nthreads,
             mem_gb=mem_gb,
-            jacobian='fmap-jacobian' not in config.workflow.ignore,
-            name='bold_std_wf',
+            jacobian=False,
+            name='boldref_to_std_wf',
         )
         ds_bold_std_wf = init_ds_volumes_wf(
             bids_root=str(config.execution.bids_dir),
             output_dir=config.execution.output_dir,
             multiecho=multiecho,
             metadata=bold_metadata,
+            fields=additional_fields,
             name='ds_bold_std_wf',
         )
         ds_bold_std_wf.inputs.inputnode.source_files = bold_file
 
         workflow.connect([
-            (inputnode, bold_std_wf, [
+            (inputnode, boldref_to_std_wf, [
                 ('std_t1w', 'inputnode.target_ref_file'),
                 ('std_mask', 'inputnode.target_mask'),
                 ('anat2std_xfm', 'inputnode.anat2std_xfm'),
                 ('std_resolution', 'inputnode.resolution'),
-                ('fmap_ref', 'inputnode.fmap_ref'),
-                ('fmap_coeff', 'inputnode.fmap_coeff'),
-                ('fmap_id', 'inputnode.fmap_id'),
-                ('outputnode.coreg_boldref', 'inputnode.bold_ref_file'),
-                ('outputnode.boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
-                ('outputnode.boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
-                ('outputnode.bold_minimal', 'inputnode.bold_file'),
-                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+                ('coreg_boldref', 'inputnode.bold_ref_file'),
+                ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
+                ('bold_minimal', 'inputnode.bold_file'),
+                ('motion_xfm', 'inputnode.motion_xfm'),
             ]),
             (inputnode, ds_bold_std_wf, [
                 ('anat2std_xfm', 'inputnode.anat2std_xfm'),
@@ -785,13 +853,13 @@ def init_single_run_wf(bold_file):
                 ('std_space', 'inputnode.space'),
                 ('std_resolution', 'inputnode.resolution'),
                 ('std_cohort', 'inputnode.cohort'),
-                ('outputnode.bold_mask', 'inputnode.bold_mask'),
-                ('outputnode.coreg_boldref', 'inputnode.bold_ref'),
-                ('outputnode.boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
-                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
-                ('outputnode.boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask', 'inputnode.bold_mask'),
+                ('coreg_boldref', 'inputnode.bold_ref'),
+                ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
+                ('motion_xfm', 'inputnode.motion_xfm'),
+                ('boldref2fmap_xfm', 'inputnode.boldref2fmap_xfm'),
             ]),
-            (bold_std_wf, ds_bold_std_wf, [
+            (boldref_to_std_wf, ds_bold_std_wf, [
                 ('outputnode.bold_file', 'inputnode.bold'),
                 ('outputnode.resampling_reference', 'inputnode.ref_file'),
             ]),
