@@ -277,7 +277,6 @@ def init_single_run_wf(bold_file):
     """Set up a single-run workflow for fMRIPost-Phase."""
     from fmriprep.utils.bids import dismiss_echo
     from fmriprep.utils.misc import estimate_bold_mem_usage
-    from fmriprep.workflows.bold.apply import init_bold_volumetric_resample_wf
     from fmriprep.workflows.bold.outputs import init_ds_volumes_wf
     from fmriprep.workflows.bold.stc import init_bold_stc_wf
     from nipype.interfaces import utility as niu
@@ -292,6 +291,7 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
     from fmripost_phase.workflows.confounds import init_bold_confs_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
+    from fmripost_phase.workflows.resample import init_bold_volumetric_resample_wf
 
     spaces = config.workflow.spaces
     omp_nthreads = config.nipype.omp_nthreads
@@ -612,7 +612,10 @@ def init_single_run_wf(bold_file):
 
     if config.workflow.regression_method:
         # Now denoise the BOLD data using phase regression
-        phase_regression_wf = init_phase_regression_wf(name_source=bold_file, metadata=bold_metadata)
+        phase_regression_wf = init_phase_regression_wf(
+            name_source=bold_file,
+            metadata=bold_metadata,
+        )
         workflow.connect([
             (inputnode, phase_regression_wf, [('bold_mask_native', 'bold_mask')]),
             (phase_boldref_wf, phase_regression_wf, [('outputnode.bold_file', 'inputnode.phase')]),
