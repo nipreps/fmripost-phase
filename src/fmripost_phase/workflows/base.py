@@ -607,7 +607,10 @@ def init_single_run_wf(bold_file):
 
     if config.workflow.regression_method:
         # Now denoise the BOLD data using phase regression
-        phase_regression_wf = init_phase_regression_wf(name_source=bold_file, metadata=bold_metadata)
+        phase_regression_wf = init_phase_regression_wf(
+            name_source=bold_file,
+            metadata=bold_metadata,
+        )
         workflow.connect([
             (inputnode, phase_regression_wf, [('bold_mask_native', 'bold_mask')]),
             (phase_boldref_wf, phase_regression_wf, [('outputnode.bold_file', 'inputnode.phase')]),
