@@ -41,7 +41,7 @@ def _get_wf_name(bold_fname, prefix):
 
     fname = split_filename(bold_fname)[1]
     fname_nosub = '_'.join(fname.split('_')[1:-1])
-    return f"{prefix}_{fname_nosub.replace('-', '_')}_wf"
+    return f'{prefix}_{fname_nosub.replace("-", "_")}_wf'
 
 
 def clean_datasinks(workflow: pe.Workflow) -> pe.Workflow:

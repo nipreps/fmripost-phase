@@ -21,6 +21,7 @@
 #     https://www.nipreps.org/community/licensing/
 #
 """Interfaces for the warpkit toolbox."""
+
 import os
 
 from nipype.interfaces.base import (
@@ -196,8 +197,8 @@ class WarpkitUnwrap(CommandLine):
         out_dir = os.getcwd()
         out_prefix = os.path.join(out_dir, self.inputs.prefix)
         outputs['unwrapped'] = [
-            f'{out_prefix}_echo-{i_echo + 1}_phase.nii.gz' for i_echo in
-            range(len(self.inputs.phase))
+            f'{out_prefix}_echo-{i_echo + 1}_phase.nii.gz'
+            for i_echo in range(len(self.inputs.phase))
         ]
         return outputs
 

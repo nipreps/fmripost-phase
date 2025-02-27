@@ -232,11 +232,11 @@ def _build_parser(**kwargs):
         type=BIDSFilter,
         metavar='FILE',
         help=(
-            "A JSON file describing custom BIDS input filters using PyBIDS. "
-            "For further details, please check out "
-            "https://fmriprep.readthedocs.io/en/"
-            f"{currentv.base_version if is_release else 'latest'}/faq.html#"
-            "how-do-I-select-only-certain-files-to-be-input-to-fMRIPrep"
+            'A JSON file describing custom BIDS input filters using PyBIDS. '
+            'For further details, please check out '
+            'https://fmriprep.readthedocs.io/en/'
+            f'{currentv.base_version if is_release else "latest"}/faq.html#'
+            'how-do-I-select-only-certain-files-to-be-input-to-fMRIPrep'
         ),
     )
     g_bids.add_argument(
@@ -584,9 +584,9 @@ def parse_args(args=None, namespace=None):
     # Ensure input and output folders are not the same
     if output_dir == bids_dir:
         parser.error(
-            "The selected output folder is the same as the input BIDS folder. "
-            "Please modify the output path "
-            f"(suggestion: {bids_dir / 'derivatives' / 'fmripost_phase-' + version.split('+')[0]}."
+            'The selected output folder is the same as the input BIDS folder. '
+            'Please modify the output path '
+            f'(suggestion: {bids_dir / "derivatives" / "fmripost_phase-" + version.split("+")[0]}.'
         )
 
     if bids_dir in work_dir.parents:
@@ -611,8 +611,8 @@ def parse_args(args=None, namespace=None):
     missing_subjects = participant_label - set(all_subjects)
     if missing_subjects:
         parser.error(
-            "One or more participant labels were not found in the BIDS directory: "
-            f"{', '.join(missing_subjects)}."
+            'One or more participant labels were not found in the BIDS directory: '
+            f'{", ".join(missing_subjects)}.'
         )
 
     config.execution.participant_label = sorted(participant_label)
