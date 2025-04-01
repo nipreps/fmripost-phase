@@ -427,6 +427,8 @@ def init_single_run_wf(bold_file):
                 'hmc',
                 'boldref2fmap',
                 'bold_mask_native',
+                'boldref2anat_xfm',
+                'anat_mask',
                 # transforms to std spaces
                 'anat2std_xfm',
                 'std_space',
@@ -754,6 +756,17 @@ def init_single_run_wf(bold_file):
     ])  # fmt:skip
 
     # Warp derivatives to boldref space
+    native_buffer = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                'jolt',
+                'jump',
+                'laplacian',
+                'unwrapped',
+            ],
+        ),
+        name='native_buffer',
+    )
     boldref_buffer = pe.Node(
         niu.IdentityInterface(
             fields=[
@@ -767,9 +780,17 @@ def init_single_run_wf(bold_file):
         ),
         name='boldref_buffer',
     )
+    native_derivatives = []
     boldref_derivatives = []
+    derivative_metadata = {}
     if config.workflow.jolt:
+        native_derivatives.append('jolt')
         boldref_derivatives.append('jolt')
+        derivative_metadata['jolt'] = {
+            'desc': 'jolt',
+            'part': 'phase',
+            'suffix': 'bold',
+        }
         jolt_boldref_wf = init_bold_volumetric_resample_wf(
             metadata=bold_metadata,
             fieldmap_id=None,  # Ignore the field map for phase data
@@ -779,6 +800,7 @@ def init_single_run_wf(bold_file):
             name='jolt_boldref_wf',
         )
         workflow.connect([
+            (calc_jolt, native_buffer, [('out_file', 'jolt')]),
             (inputnode, jolt_boldref_wf, [
                 ('hmc', 'motion_xfm'),
                 ('boldref2fmap', 'boldref2fmap_xfm'),
@@ -789,7 +811,13 @@ def init_single_run_wf(bold_file):
         ])  # fmt:skip
 
     if config.workflow.jump:
+        native_derivatives.append('jump')
         boldref_derivatives.append('jump')
+        derivative_metadata['jump'] = {
+            'desc': 'jump',
+            'part': 'phase',
+            'suffix': 'bold',
+        }
         jump_boldref_wf = init_bold_volumetric_resample_wf(
             metadata=bold_metadata,
             fieldmap_id=None,  # Ignore the field map for phase data
@@ -799,6 +827,7 @@ def init_single_run_wf(bold_file):
             name='jump_boldref_wf',
         )
         workflow.connect([
+            (calc_jump, native_buffer, [('out_file', 'jump')]),
             (inputnode, jump_boldref_wf, [
                 ('hmc', 'motion_xfm'),
                 ('boldref2fmap', 'boldref2fmap_xfm'),
@@ -809,7 +838,13 @@ def init_single_run_wf(bold_file):
         ])  # fmt:skip
 
     if config.workflow.laplacian:
+        native_derivatives.append('laplacian')
         boldref_derivatives.append('laplacian')
+        derivative_metadata['laplacian'] = {
+            'desc': 'laplacian',
+            'part': 'phase',
+            'suffix': 'bold',
+        }
         laplacian_boldref_wf = init_bold_volumetric_resample_wf(
             metadata=bold_metadata,
             fieldmap_id=None,  # Ignore the field map for phase data
@@ -819,6 +854,7 @@ def init_single_run_wf(bold_file):
             name='laplacian_boldref_wf',
         )
         workflow.connect([
+            (calc_laplacian, native_buffer, [('out_file', 'laplacian')]),
             (inputnode, laplacian_boldref_wf, [
                 ('hmc', 'motion_xfm'),
                 ('boldref2fmap', 'boldref2fmap_xfm'),
@@ -831,6 +867,16 @@ def init_single_run_wf(bold_file):
     if config.workflow.regression_method:
         boldref_derivatives.append('phaseDenoised')
         boldref_derivatives.append('phaseNoise')
+        derivative_metadata['phaseDenoised'] = {
+            'desc': 'denoised',
+            'part': 'mag',
+            'suffix': 'bold',
+        }
+        derivative_metadata['phaseNoise'] = {
+            'desc': 'noise',
+            'part': 'phase',
+            'suffix': 'bold',
+        }
         workflow.connect([
             (phase_regression_wf, boldref_buffer, [
                 ('outputnode.denoised_magnitude', 'phaseDenoised'),
@@ -839,8 +885,15 @@ def init_single_run_wf(bold_file):
         ])  # fmt:skip
 
     if config.workflow.unwrapped_phase:
+        native_derivatives.append('unwrapped')
         boldref_derivatives.append('unwrapped')
+        derivative_metadata['unwrapped'] = {
+            'desc': 'unwrapped',
+            'part': 'phase',
+            'suffix': 'bold',
+        }
         workflow.connect([
+            (unwrap_phase, native_buffer, [('unwrapped', 'unwrapped')]),
             (phase_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'unwrapped')]),
         ])  # fmt:skip
 
@@ -865,17 +918,13 @@ def init_single_run_wf(bold_file):
             ]),
         ])  # fmt:skip
 
-    # TODO: Wrangle desired output spaces and warp derivatives to them
-    boldref_out = bool(nonstd_spaces.intersection(('func', 'run', 'bold', 'boldref', 'sbref')))
-
-    if boldref_out:
+    if nonstd_spaces.intersection(('func', 'run', 'bold', 'boldref', 'sbref')):
+        # Write out derivatives that are already in boldref space
         for boldref_derivative in boldref_derivatives:
-            # jolt, jump, laplacian, unwrapped phase, denoising summary maps
             ds_deriv_boldref = pe.Node(
                 DerivativesDataSink(
                     desc=boldref_derivative,
-                    part='phase',
-                    suffix='bold',
+                    **derivative_metadata[boldref_derivative],
                 ),
                 name=f'ds_{boldref_derivative}_boldref',
             )
@@ -883,12 +932,131 @@ def init_single_run_wf(bold_file):
                 (boldref_buffer, ds_deriv_boldref, [(boldref_derivative, 'in_file')]),
             ])  # fmt:skip
 
-    # Full derivatives, including resampled BOLD series
+    from_boldref = sorted(set(boldref_derivatives) - set(native_derivatives))
     if nonstd_spaces.intersection(('anat', 'T1w')):
-        ...
+        # Warp derivatives from native space to anat space in one shot
+        for native_derivative in native_derivatives:
+            native_anat_wf = init_bold_volumetric_resample_wf(
+                metadata=bold_metadata,
+                fieldmap_id=None,  # Ignore the field map for phase data
+                omp_nthreads=omp_nthreads,
+                mem_gb=mem_gb,
+                jacobian=False,
+                name=f'{native_derivative}_anat_wf',
+            )
+            workflow.connect([
+                (inputnode, native_anat_wf, [
+                    ('hmc', 'motion_xfm'),
+                    ('boldref2fmap', 'boldref2fmap_xfm'),
+                    ('anat_mask', 'bold_ref_file'),
+                    ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                ]),
+                (native_buffer, native_anat_wf, [(native_derivative, 'inputnode.bold')]),
+            ])  # fmt:skip
 
+            ds_deriv_anat = pe.Node(
+                DerivativesDataSink(
+                    desc=native_derivative,
+                    space='anat',
+                    **derivative_metadata[native_derivative],
+                ),
+                name=f'ds_{native_derivative}_anat',
+            )
+            workflow.connect([
+                (native_anat_wf, ds_deriv_anat, [('outputnode.bold_file', 'in_file')]),
+            ])  # fmt:skip
+
+        # For derivatives that are only available in boldref space, warp them to anat space
+        for boldref_derivative in from_boldref:
+            boldref_anat_wf = init_bold_volumetric_resample_wf(
+                metadata=bold_metadata,
+                fieldmap_id=None,  # Ignore the field map for phase data
+                omp_nthreads=omp_nthreads,
+                mem_gb=mem_gb,
+                jacobian=False,
+                name=f'{boldref_derivative}_anat_wf',
+            )
+            workflow.connect([
+                (inputnode, boldref_anat_wf, [
+                    ('hmc', 'motion_xfm'),
+                    ('boldref2fmap', 'boldref2fmap_xfm'),
+                    ('anat_mask', 'bold_ref_file'),
+                ]),
+            ])  # fmt:skip
+
+            ds_deriv_anat = pe.Node(
+                DerivativesDataSink(
+                    desc=boldref_derivative,
+                    space='anat',
+                    **derivative_metadata[boldref_derivative],
+                ),
+                name=f'ds_{boldref_derivative}_anat',
+            )
+            workflow.connect([
+                (boldref_anat_wf, ds_deriv_anat, [('outputnode.bold_file', 'in_file')]),
+            ])  # fmt:skip
+
+    # TODO: Wrangle desired output spaces and warp derivatives to them
     if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
-        ...
+        # Warp derivatives from native space to anat space in one shot
+        for native_derivative in native_derivatives:
+            native_std_wf = init_bold_volumetric_resample_wf(
+                metadata=bold_metadata,
+                fieldmap_id=None,  # Ignore the field map for phase data
+                omp_nthreads=omp_nthreads,
+                mem_gb=mem_gb,
+                jacobian=False,
+                name=f'{native_derivative}_std_wf',
+            )
+            workflow.connect([
+                (inputnode, native_std_wf, [
+                    ('hmc', 'motion_xfm'),
+                    ('boldref2fmap', 'boldref2fmap_xfm'),
+                    ('anat_mask', 'bold_ref_file'),
+                    ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                ]),
+                (native_buffer, native_std_wf, [(native_derivative, 'inputnode.bold')]),
+            ])  # fmt:skip
+
+            ds_deriv_std = pe.Node(
+                DerivativesDataSink(
+                    desc=native_derivative,
+                    **derivative_metadata[native_derivative],
+                ),
+                name=f'ds_{native_derivative}_std',
+            )
+            workflow.connect([
+                (native_std_wf, ds_deriv_std, [('outputnode.bold_file', 'in_file')]),
+            ])  # fmt:skip
+
+        # For derivatives that are only available in boldref space, warp them to anat space
+        for boldref_derivative in from_boldref:
+            boldref_std_wf = init_bold_volumetric_resample_wf(
+                metadata=bold_metadata,
+                fieldmap_id=None,  # Ignore the field map for phase data
+                omp_nthreads=omp_nthreads,
+                mem_gb=mem_gb,
+                jacobian=False,
+                name=f'{boldref_derivative}_std_wf',
+            )
+            workflow.connect([
+                (inputnode, boldref_std_wf, [
+                    ('hmc', 'motion_xfm'),
+                    ('boldref2fmap', 'boldref2fmap_xfm'),
+                    ('anat_mask', 'bold_ref_file'),
+                ]),
+            ])  # fmt:skip
+
+            ds_deriv_std = pe.Node(
+                DerivativesDataSink(
+                    desc=boldref_derivative,
+                    **derivative_metadata[boldref_derivative],
+                ),
+                name=f'ds_{boldref_derivative}_std',
+            )
+            workflow.connect([
+                (boldref_std_wf, ds_deriv_std, [('outputnode.bold_file', 'in_file')]),
+            ])  # fmt:skip
 
     if config.workflow.run_reconall and freesurfer_spaces:
         ...
