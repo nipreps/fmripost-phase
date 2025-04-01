@@ -285,7 +285,7 @@ def init_single_run_wf(bold_file):
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.complex import Scale2Radians
-    from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt
+    from fmripost_phase.interfaces.laynii import LayNiiPhaseJolt, LayNiiPhaseLaplacian
     from fmripost_phase.interfaces.misc import DictToJSON, RemoveNSS
     from fmripost_phase.interfaces.warpkit import ROMEOUnwrap, WarpkitUnwrap
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
@@ -653,6 +653,25 @@ def init_single_run_wf(bold_file):
             name='ds_jump',
         )
         workflow.connect([(calc_jump, ds_jump, [('out_file', 'in_file')])])
+
+    if config.workflow.laplacian:
+        # Run Laplacian
+        calc_laplacian = pe.Node(
+            LayNiiPhaseLaplacian(),
+            name='calc_laplacian',
+        )
+        workflow.connect([
+            (phase_boldref_wf, calc_laplacian, [('outputnode.out_file', 'in_file')]),
+        ])  # fmt:skip
+
+        ds_laplacian = pe.Node(
+            DerivativesDataSink(
+                source_file=bold_file,
+                desc='laplacian',
+            ),
+            name='ds_laplacian',
+        )
+        workflow.connect([(calc_laplacian, ds_laplacian, [('out_file', 'in_file')])])
 
     if config.workflow.gift_dimensionality != 0:
         # Run GIFT ICA

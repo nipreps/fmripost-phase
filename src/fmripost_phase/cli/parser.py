@@ -174,6 +174,13 @@ def _build_parser(**kwargs):
         help='Calculate and output phase jolt file.',
     )
     g_phase.add_argument(
+        '--laplacian',
+        dest='laplacian',
+        action='store_true',
+        default=False,
+        help='Calculate and output phase Laplacian file.',
+    )
+    g_phase.add_argument(
         '--regression-method',
         action='store',
         choices=['odr', 'ols', 'none'],

@@ -547,6 +547,8 @@ class workflow(_Config):
     """Calculate and output phase jolt file."""
     jump = None
     """Calculate and output phase jump file."""
+    laplacian = None
+    """Calculate and output phase Laplacian file."""
     thermal_denoise_method = None
     """Apply NORDIC or MP-PCA denoising to the BOLD data to remove thermal noise."""
     regression_method = None
