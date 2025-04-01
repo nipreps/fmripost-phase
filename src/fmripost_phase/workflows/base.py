@@ -26,6 +26,7 @@ fMRIPost phase workflows
 
 .. autofunction:: init_fmripost_phase_wf
 .. autofunction:: init_single_subject_wf
+.. autofunction:: init_single_run_wf
 
 """
 
@@ -135,6 +136,7 @@ def init_single_subject_wf(subject_id: str):
     from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.interfaces.utility import KeySelect
+    from smriprep.workflows.outputs import init_template_iterator_wf
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.reportlets import AboutSummary, SubjectSummary
@@ -172,31 +174,17 @@ It is released under the [CC0]\
 
 """
 
-    if config.execution.derivatives:
-        # Raw dataset + derivatives dataset
-        config.loggers.workflow.info('Raw+derivatives workflow mode enabled')
-        subject_data = collect_derivatives(
-            raw_dataset=config.execution.layout,
-            derivatives_dataset=None,
-            entities=config.execution.bids_filters,
-            fieldmap_id=None,
-            allow_multiple=True,
-            spaces=None,
-        )
-        subject_data['bold'] = listify(subject_data['magnitude_raw'])
-    else:
-        # Derivatives dataset only
-        config.loggers.workflow.info('Derivatives-only workflow mode enabled')
-        subject_data = collect_derivatives(
-            raw_dataset=None,
-            derivatives_dataset=config.execution.layout,
-            entities=config.execution.bids_filters,
-            fieldmap_id=None,
-            allow_multiple=True,
-            spaces=None,
-        )
-        # Patch standard-space BOLD files into 'bold' key
-        subject_data['bold'] = listify(subject_data['bold_mni152nlin6asym'])
+    # Raw dataset + derivatives dataset
+    config.loggers.workflow.info('Raw+derivatives workflow mode enabled')
+    subject_data = collect_derivatives(
+        raw_dataset=config.execution.layout,
+        derivatives_dataset=None,
+        entities=config.execution.bids_filters,
+        fieldmap_id=None,
+        allow_multiple=True,
+        spaces=None,
+    )
+    subject_data['bold'] = listify(subject_data['magnitude_raw'])
 
     # Make sure we always go through these two checks
     if not subject_data['bold']:
@@ -212,6 +200,8 @@ It is released under the [CC0]\
         niu.IdentityInterface(fields=['std2anat_xfm', 'template']),
         name='inputnode',
     )
+    inputnode.inputs.std2anat_xfm = subject_data['std2anat_xfm']
+    inputnode.inputs.template = subject_data['template']
 
     bids_info = pe.Node(
         BIDSInfo(
@@ -286,17 +276,38 @@ Functional data postprocessing
             ]),
         ])  # fmt:skip
 
+    if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
+        template_iterator_wf = init_template_iterator_wf(
+            spaces=spaces,
+            sloppy=config.execution.sloppy,
+        )
+        workflow.connect([
+            (inputnode, template_iterator_wf, [
+                ('template', 'inputnode.template'),
+                ('anat2std_xfm', 'inputnode.anat2std_xfm'),
+            ]),
+        ])  # fmt:skip
+
     for bold_file in subject_data['bold']:
         single_run_wf = init_single_run_wf(bold_file)
         workflow.connect([
-            (inputnode, single_run_wf, [
-                ('std2anat_xfm', 'inputnode.std2anat_xfm'),
-                ('template', 'inputnode.template'),
-            ]),
             (select_MNI2009c_xfm, single_run_wf, [
                 ('mni2009c2anat_xfm', 'inputnode.mni2009c2anat_xfm'),
             ]),
         ])  # fmt:skip
+
+        if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
+            workflow.connect([
+                (template_iterator_wf, single_run_wf, [
+                    ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+                    ('outputnode.space', 'inputnode.std_space'),
+                    ('outputnode.resolution', 'inputnode.std_resolution'),
+                    ('outputnode.cohort', 'inputnode.std_cohort'),
+                    ('outputnode.std_t1w', 'inputnode.std_t1w'),
+                    ('outputnode.std_mask', 'inputnode.std_mask'),
+                ]),
+            ])  # fmt:skip
+
 
     return clean_datasinks(workflow)
 
@@ -414,6 +425,12 @@ def init_single_run_wf(bold_file):
                 'boldref2fmap',
                 'bold_mask_native',
                 'confounds',
+                'anat2std_xfm',
+                'std_space',
+                'std_resolution',
+                'std_cohort',
+                'std_t1w',
+                'std_mask',
                 'mni2009c2anat_xfm',
             ],
         ),
