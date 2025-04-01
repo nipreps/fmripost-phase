@@ -22,7 +22,7 @@ def init_ds_bold_native_wf(
     name='ds_bold_native_wf',
 ) -> pe.Workflow:
     metadata = all_metadata[0]
-    timing_parameters = prepare_timing_parameters(metadata)
+    timing_parameters = {}  # prepare_timing_parameters(metadata)
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
@@ -105,6 +105,7 @@ def init_ds_bold_native_wf(
             (sources, ds_t2star, [('out', 'Sources')]),
         ])  # fmt:skip
 
+    echo_output = False
     if echo_output:
         ds_bold_echos = pe.MapNode(
             DerivativesDataSink(
