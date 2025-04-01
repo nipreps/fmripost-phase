@@ -948,7 +948,7 @@ def init_single_run_wf(bold_file):
                 (inputnode, native_anat_wf, [
                     ('hmc', 'motion_xfm'),
                     ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('anat_mask', 'bold_ref_file'),
+                    ('bold_mask_native', 'bold_ref_file'),
                     ('boldref2anat_xfm', 'boldref2anat_xfm'),
                 ]),
                 (native_buffer, native_anat_wf, [(native_derivative, 'inputnode.bold')]),
@@ -980,7 +980,7 @@ def init_single_run_wf(bold_file):
                 (inputnode, boldref_anat_wf, [
                     ('hmc', 'motion_xfm'),
                     ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('anat_mask', 'bold_ref_file'),
+                    ('bold_mask_native', 'bold_ref_file'),
                 ]),
             ])  # fmt:skip
 
@@ -1012,8 +1012,15 @@ def init_single_run_wf(bold_file):
                 (inputnode, native_std_wf, [
                     ('hmc', 'motion_xfm'),
                     ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('anat_mask', 'bold_ref_file'),
+                    ('bold_mask_native', 'bold_ref_file'),
                     ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                    ('std_t1w', 'inputnode.target_ref_file'),
+                    ('std_mask', 'inputnode.target_mask'),
+                    ('anat2std_xfm', 'inputnode.anat2std_xfm'),
+                    ('std_resolution', 'inputnode.resolution'),
+                    ('fmap_ref', 'inputnode.fmap_ref'),
+                    ('fmap_coeff', 'inputnode.fmap_coeff'),
+                    ('fmap_id', 'inputnode.fmap_id'),
                 ]),
                 (native_buffer, native_std_wf, [(native_derivative, 'inputnode.bold')]),
             ])  # fmt:skip
@@ -1041,9 +1048,14 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, boldref_std_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('anat_mask', 'bold_ref_file'),
+                    ('bold_mask_native', 'bold_ref_file'),
+                    ('std_t1w', 'inputnode.target_ref_file'),
+                    ('std_mask', 'inputnode.target_mask'),
+                    ('anat2std_xfm', 'inputnode.anat2std_xfm'),
+                    ('std_resolution', 'inputnode.resolution'),
+                    ('fmap_ref', 'inputnode.fmap_ref'),
+                    ('fmap_coeff', 'inputnode.fmap_coeff'),
+                    ('fmap_id', 'inputnode.fmap_id'),
                 ]),
             ])  # fmt:skip
 
