@@ -181,3 +181,186 @@ def init_bold_confs_wf(
     ])  # fmt:skip
 
     return clean_datasinks(workflow)
+
+
+def init_carpetplot_wf(
+    mem_gb: float,
+    metadata: dict,
+    cifti_output: bool,
+    name: str = 'bold_carpet_wf',
+):
+    """Build a workflow to generate *carpet* plots.
+
+    Resamples the MNI parcellation
+    (ad-hoc parcellation derived from the Harvard-Oxford template and others).
+
+    Parameters
+    ----------
+    mem_gb : :obj:`float`
+        Size of BOLD file in GB - please note that this size
+        should be calculated after resamplings that may extend
+        the FoV
+    metadata : :obj:`dict`
+        BIDS metadata for BOLD file
+    name : :obj:`str`
+        Name of workflow (default: ``bold_carpet_wf``)
+
+    Inputs
+    ------
+    bold
+        BOLD image, in MNI152NLin6Asym space + 2mm resolution.
+    bold_mask
+        BOLD series mask in same space as ``bold``.
+    confounds_file
+        TSV of all aggregated confounds
+    boldref2anat_xfm
+        Transform from boldref to anat space
+    std2anat_xfm
+        Transform from standard space to anat space
+    cifti_bold
+        BOLD image in CIFTI format, to be used in place of volumetric BOLD
+    crown_mask
+        Mask of brain edge voxels. Dropped.
+    acompcor_mask
+        Mask of deep WM+CSF. Dropped.
+    dummy_scans
+        Number of nonsteady states to be dropped at the beginning of the timeseries.
+    desc
+        Description of the carpet plot.
+
+    Outputs
+    -------
+    out_carpetplot
+        Path of the generated SVG file
+    """
+    from fmriprep.interfaces.confounds import FMRISummary
+    from nipype.interfaces import utility as niu
+    from nipype.pipeline import engine as pe
+    from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+    from templateflow.api import get as get_template
+
+    from fmripost_phase.config import DEFAULT_MEMORY_MIN_GB
+    from fmripost_phase.interfaces.bids import DerivativesDataSink
+    from fmripost_phase.interfaces.misc import ApplyTransforms
+
+    inputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                'bold',
+                'bold_mask',
+                'confounds_file',
+                'boldref2anat_xfm',
+                'std2anat_xfm',
+                'cifti_bold',
+                'dummy_scans',
+                'desc',
+            ],
+        ),
+        name='inputnode',
+    )
+
+    outputnode = pe.Node(niu.IdentityInterface(fields=['out_carpetplot']), name='outputnode')
+
+    # Carpetplot and confounds plot
+    conf_plot = pe.Node(
+        FMRISummary(
+            tr=metadata['RepetitionTime'],
+            confounds_list=[
+                ('trans_x', 'mm', 'x'),
+                ('trans_y', 'mm', 'y'),
+                ('trans_z', 'mm', 'z'),
+                ('rot_x', 'deg', 'pitch'),
+                ('rot_y', 'deg', 'roll'),
+                ('rot_z', 'deg', 'yaw'),
+                ('framewise_displacement', 'mm', 'FD'),
+            ],
+        ),
+        name='conf_plot',
+        mem_gb=mem_gb,
+    )
+    ds_report_bold_conf = pe.Node(
+        DerivativesDataSink(
+            datatype='figures',
+            extension='svg',
+            dismiss_entities=('echo', 'den', 'res'),
+        ),
+        name='ds_report_bold_conf',
+        run_without_submitting=True,
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
+
+    parcels = pe.Node(niu.Function(function=_carpet_parcellation), name='parcels')
+    parcels.inputs.nifti = not cifti_output
+
+    # Warp segmentation into MNI152NLin6Asym space
+    resample_parc = pe.Node(
+        ApplyTransforms(
+            dimension=3,
+            input_image=str(
+                get_template(
+                    'MNI152NLin2009cAsym',
+                    resolution=1,
+                    desc='carpet',
+                    suffix='dseg',
+                    extension=['.nii', '.nii.gz'],
+                )
+            ),
+            invert_transform_flags=[True, False],
+            interpolation='MultiLabel',
+            args='-u int',
+        ),
+        name='resample_parc',
+    )
+
+    workflow = Workflow(name=name)
+    # List transforms
+    mrg_xfms = pe.Node(niu.Merge(2), name='mrg_xfms')
+    if cifti_output:
+        workflow.connect(inputnode, 'cifti_bold', conf_plot, 'in_cifti')
+
+    workflow.connect([
+        (inputnode, mrg_xfms, [
+            ('boldref2anat_xfm', 'in1'),
+            ('std2anat_xfm', 'in2'),
+        ]),
+        (inputnode, resample_parc, [('bold_mask', 'reference_image')]),
+        (mrg_xfms, resample_parc, [('out', 'transforms')]),
+        (inputnode, conf_plot, [
+            ('bold', 'in_nifti'),
+            ('confounds_file', 'confounds_file'),
+            ('dummy_scans', 'drop_trs'),
+        ]),
+        (resample_parc, parcels, [('output_image', 'segmentation')]),
+        (parcels, conf_plot, [('out', 'in_segm')]),
+        (inputnode, ds_report_bold_conf, [('desc', 'desc')]),
+        (conf_plot, ds_report_bold_conf, [('out_file', 'in_file')]),
+        (conf_plot, outputnode, [('out_file', 'out_carpetplot')]),
+    ])  # fmt:skip
+    return workflow
+
+
+def _carpet_parcellation(segmentation, nifti=False):
+    """Generate the union of two masks."""
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    img = nb.load(segmentation)
+
+    lut = np.zeros((256,), dtype='uint8')
+    lut[100:201] = 1 if nifti else 0  # Ctx GM
+    lut[30:99] = 2 if nifti else 0  # dGM
+    lut[1:11] = 3 if nifti else 1  # WM+CSF
+    lut[255] = 5 if nifti else 0  # Cerebellum
+    # Apply lookup table
+    seg = lut[np.uint16(img.dataobj)]
+    # seg[np.bool_(nb.load(crown_mask).dataobj)] = 6 if nifti else 2
+    # Separate deep from shallow WM+CSF
+    # seg[np.bool_(nb.load(acompcor_mask).dataobj)] = 4 if nifti else 1
+
+    outimg = img.__class__(seg.astype('uint8'), img.affine, img.header)
+    outimg.set_data_dtype('uint8')
+    out_file = Path('segments.nii.gz').absolute()
+    outimg.to_filename(out_file)
+    return str(out_file)

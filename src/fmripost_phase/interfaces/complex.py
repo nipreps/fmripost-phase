@@ -168,11 +168,18 @@ class ConcatenateNoise(SimpleInterface):
     output_spec = _ConcatenateNoiseOutputSpec
 
     def _run_interface(self, runtime):
+        import nibabel as nb
+        import numpy as np
         from nilearn.image import concat_imgs
 
         self._results['n_noise_volumes'] = nb.load(self.inputs.noise_file).shape[3]
         concat_img = concat_imgs([self.inputs.in_file, self.inputs.noise_file])
         self._results['out_file'] = os.path.abspath(os.path.join(runtime.cwd, 'concat.nii.gz'))
+        # set slope and intercept in BOLD image header so no scaling is applied
+        concat_img.header.set_slope_inter(1, 0)
+
+        # set data type to float32 since there's no scaling to uint16 anymore
+        concat_img.header.set_data_dtype(np.float32)
         concat_img.to_filename(self._results['out_file'])
         return runtime
 

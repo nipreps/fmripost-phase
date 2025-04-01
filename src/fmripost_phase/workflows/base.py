@@ -35,6 +35,7 @@ from collections import defaultdict
 from copy import deepcopy
 
 import yaml
+from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from packaging.version import Version
 
@@ -133,6 +134,7 @@ def init_single_subject_wf(subject_id: str):
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
+    from niworkflows.interfaces.utility import KeySelect
 
     from fmripost_phase.interfaces.bids import DerivativesDataSink
     from fmripost_phase.interfaces.reportlets import AboutSummary, SubjectSummary
@@ -206,6 +208,11 @@ It is released under the [CC0]\
             f'Please check your BIDS filters: {config.execution.bids_filters}.'
         )
 
+    inputnode = pe.Node(
+        niu.IdentityInterface(fields=['std2anat_xfm', 'template']),
+        name='inputnode',
+    )
+
     bids_info = pe.Node(
         BIDSInfo(
             bids_dir=config.execution.bids_dir,
@@ -266,9 +273,30 @@ Functional data postprocessing
 """
     workflow.__desc__ += func_pre_desc
 
+    if 'MNI152NLin2009cAsym' in spaces.get_spaces():
+        select_MNI2009c_xfm = pe.Node(
+            KeySelect(fields=['std2anat_xfm'], key='MNI152NLin2009cAsym'),
+            name='select_MNI2009c_xfm',
+            run_without_submitting=True,
+        )
+        workflow.connect([
+            (inputnode, select_MNI2009c_xfm, [
+                ('std2anat_xfm', 'std2anat_xfm'),
+                ('template', 'keys'),
+            ]),
+        ])  # fmt:skip
+
     for bold_file in subject_data['bold']:
         single_run_wf = init_single_run_wf(bold_file)
-        workflow.add_nodes([single_run_wf])
+        workflow.connect([
+            (inputnode, single_run_wf, [
+                ('std2anat_xfm', 'inputnode.std2anat_xfm'),
+                ('template', 'inputnode.template'),
+            ]),
+            (select_MNI2009c_xfm, single_run_wf, [
+                ('mni2009c2anat_xfm', 'inputnode.mni2009c2anat_xfm'),
+            ]),
+        ])  # fmt:skip
 
     return clean_datasinks(workflow)
 
@@ -279,7 +307,6 @@ def init_single_run_wf(bold_file):
     from fmriprep.utils.misc import estimate_bold_mem_usage
     from fmriprep.workflows.bold.apply import init_bold_volumetric_resample_wf
     from fmriprep.workflows.bold.stc import init_bold_stc_wf
-    from nipype.interfaces import utility as niu
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.header import ValidateImage
 
@@ -289,10 +316,12 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.interfaces.misc import DictToJSON, RemoveNSS
     from fmripost_phase.interfaces.warpkit import ROMEOUnwrap, WarpkitUnwrap
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
-    from fmripost_phase.workflows.confounds import init_bold_confs_wf
+    from fmripost_phase.workflows.confounds import init_bold_confs_wf, init_carpetplot_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
     spaces = config.workflow.spaces
+    nonstd_spaces = set(spaces.get_nonstandard())
+    freesurfer_spaces = set(spaces.get_fs_spaces())
     omp_nthreads = config.nipype.omp_nthreads
 
     workflow = Workflow(name=_get_wf_name(bold_file, 'single_run'))
@@ -304,13 +333,31 @@ def init_single_run_wf(bold_file):
 
     entities = extract_entities(bold_file)
 
+    # Attempt to extract the associated fmap ID
+    fmapid = None
+    all_fmapids = config.execution.layout.get_fmapids(
+        subject=entities['subject'],
+        session=entities.get('session', None),
+    )
+    if all_fmapids:
+        fmap_file = config.execution.layout.get_nearest(
+            bold_file,
+            to=all_fmapids,
+            suffix='xfm',
+            extension='.txt',
+            strict=False,
+            **{'from': 'boldref'},
+        )
+        if fmap_file:
+            fmapid = config.execution.layout.get_file(fmap_file).entities['to']
+
     functional_cache = defaultdict(list, {})
     # Collect native-space derivatives and transforms
     functional_cache = collect_derivatives(
         raw_dataset=config.execution.layout,
         derivatives_dataset=None,
         entities=entities,
-        fieldmap_id=None,
+        fieldmap_id=fmapid,
         allow_multiple=False,
         spaces=None,
     )
@@ -321,7 +368,7 @@ def init_single_run_wf(bold_file):
                 raw_dataset=None,
                 derivatives_dataset=deriv_dir,
                 entities=entities,
-                fieldmap_id=None,
+                fieldmap_id=fmapid,
                 allow_multiple=False,
                 spaces=spaces,
             ),
@@ -367,6 +414,7 @@ def init_single_run_wf(bold_file):
                 'boldref2fmap',
                 'bold_mask_native',
                 'confounds',
+                'mni2009c2anat_xfm',
             ],
         ),
         name='inputnode',
@@ -379,6 +427,8 @@ def init_single_run_wf(bold_file):
     inputnode.inputs.boldref2fmap = functional_cache['boldref2fmap']
     inputnode.inputs.bold_mask_native = functional_cache['bold_mask_native']
     inputnode.inputs.confounds = functional_cache['confounds']
+    # Field maps
+    inputnode.inputs.fmap = functional_cache['fmap']
 
     validate_bold = pe.Node(
         ValidateImage(),
@@ -412,6 +462,7 @@ def init_single_run_wf(bold_file):
         ])  # fmt:skip
 
         # Rescale phase data to radians (-pi to pi)
+        # XXX: Why is this needed?
         phase_to_radians = pe.Node(
             Scale2Radians(scale='pi'),
             name='phase_to_radians',
@@ -484,20 +535,22 @@ def init_single_run_wf(bold_file):
     )
     run_stc = ('SliceTiming' in bold_metadata) and 'slicetiming' not in config.workflow.ignore
     if run_stc:
-        bold_stc_wf = init_bold_stc_wf(
+        mag_stc_wf = init_bold_stc_wf(
             mem_gb=mem_gb,
             metadata=bold_metadata,
-            name='resample_stc_wf',
+            name='mag_stc_wf',
         )
-        bold_stc_wf.inputs.inputnode.skip_vols = skip_vols
+        mag_stc_wf.inputs.inputnode.skip_vols = skip_vols
         workflow.connect([
-            (denoise_buffer, bold_stc_wf, [('magnitude', 'inputnode.bold_file')]),
-            (bold_stc_wf, stc_buffer, [('outputnode.stc_file', 'bold_file')]),
+            (denoise_buffer, mag_stc_wf, [('magnitude', 'inputnode.bold_file')]),
+            (mag_stc_wf, stc_buffer, [('outputnode.stc_file', 'bold_file')]),
         ])  # fmt:skip
     else:
         workflow.connect([(denoise_buffer, stc_buffer, [('magnitude', 'bold_file')])])
 
     # Remove non-steady-state volumes
+    # XXX: This probably introduces a mismatch in the number of volumes of the data and the
+    # motion xfm.
     remove_mag_nss = pe.Node(
         RemoveNSS(skip_vols=skip_vols),
         name='remove_mag_nss',
@@ -557,7 +610,7 @@ def init_single_run_wf(bold_file):
     # Warp magnitude and phase data to BOLD reference space
     mag_boldref_wf = init_bold_volumetric_resample_wf(
         metadata=bold_metadata,
-        fieldmap_id=None,  # XXX: Ignoring the field map for now
+        fieldmap_id=fmapid,
         omp_nthreads=omp_nthreads,
         mem_gb=mem_gb,
         jacobian='fmap-jacobian' not in config.workflow.ignore,
@@ -573,21 +626,20 @@ def init_single_run_wf(bold_file):
 
     workflow.connect([
         (remove_mag_nss, mag_boldref_wf, [('out_file', 'inputnode.bold_file')]),
-        # XXX: Ignoring the field map for now
-        # (inputnode, mag_boldref_wf, [
-        #     ('fmap_ref', 'inputnode.fmap_ref'),
-        #     ('fmap_coeff', 'inputnode.fmap_coeff'),
-        #     ('fmap_id', 'inputnode.fmap_id'),
-        # ]),
+        (inputnode, mag_boldref_wf, [
+            ('fmap_ref', 'inputnode.fmap_ref'),
+            ('fmap_coeff', 'inputnode.fmap_coeff'),
+            ('fmap_id', 'inputnode.fmap_id'),
+        ]),
     ])  # fmt:skip
 
-    # Warp to boldref space (motion correction + distortion correction[?] + fmap-to-boldref)
+    # Warp to boldref space (motion correction)
     phase_boldref_wf = init_bold_volumetric_resample_wf(
         metadata=bold_metadata,
-        fieldmap_id=None,  # XXX: Ignoring the field map for now
+        fieldmap_id=None,  # Ignore the field map for phase data
         omp_nthreads=omp_nthreads,
         mem_gb=mem_gb,
-        jacobian='fmap-jacobian' not in config.workflow.ignore,
+        jacobian=False,
         name='phase_boldref_wf',
     )
     workflow.connect([
@@ -619,23 +671,16 @@ def init_single_run_wf(bold_file):
             ]),
         ])  # fmt:skip
 
-    # Calculate phase jolt and/or jump files
+    # Calculate phase jolt, jump, and/or laplacian files
+    # TODO: Apply transforms to jolt, jump, and laplacian files to target spaces
+    # TODO: Create figures for derivatives, including carpet plots and registration plots
     if config.workflow.jolt:
         # Calculate phase jolt
         calc_jolt = pe.Node(
             LayNiiPhaseJolt(phase_jump=False),
             name='calc_jolt',
         )
-        workflow.connect([(phase_boldref_wf, calc_jolt, [('outputnode.out_file', 'in_file')])])
-
-        ds_jolt = pe.Node(
-            DerivativesDataSink(
-                source_file=bold_file,
-                desc='jolt',
-            ),
-            name='ds_jolt',
-        )
-        workflow.connect([(calc_jolt, ds_jolt, [('out_file', 'in_file')])])
+        workflow.connect([(remove_phase_nss, calc_jolt, [('out_file', 'in_file')])])
 
     if config.workflow.jump:
         # Calculate phase jump
@@ -643,16 +688,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseJolt(phase_jump=True),
             name='calc_jump',
         )
-        workflow.connect([(phase_boldref_wf, calc_jump, [('outputnode.out_file', 'in_file')])])
-
-        ds_jump = pe.Node(
-            DerivativesDataSink(
-                source_file=bold_file,
-                desc='jump',
-            ),
-            name='ds_jump',
-        )
-        workflow.connect([(calc_jump, ds_jump, [('out_file', 'in_file')])])
+        workflow.connect([(remove_phase_nss, calc_jump, [('out_file', 'in_file')])])
 
     if config.workflow.laplacian:
         # Run Laplacian
@@ -660,18 +696,7 @@ def init_single_run_wf(bold_file):
             LayNiiPhaseLaplacian(),
             name='calc_laplacian',
         )
-        workflow.connect([
-            (phase_boldref_wf, calc_laplacian, [('outputnode.out_file', 'in_file')]),
-        ])  # fmt:skip
-
-        ds_laplacian = pe.Node(
-            DerivativesDataSink(
-                source_file=bold_file,
-                desc='laplacian',
-            ),
-            name='ds_laplacian',
-        )
-        workflow.connect([(calc_laplacian, ds_laplacian, [('out_file', 'in_file')])])
+        workflow.connect([(remove_phase_nss, calc_laplacian, [('out_file', 'in_file')])])
 
     if config.workflow.gift_dimensionality != 0:
         # Run GIFT ICA
@@ -694,6 +719,7 @@ def init_single_run_wf(bold_file):
         DerivativesDataSink(
             desc='confounds',
             suffix='timeseries',
+            extension='.tsv',
             dismiss_entities=dismiss_echo(),
         ),
         name='ds_confounds',
@@ -706,6 +732,149 @@ def init_single_run_wf(bold_file):
             ('outputnode.confounds_metadata', 'meta_dict'),
         ]),
     ])  # fmt:skip
+
+    # Warp derivatives to boldref space
+    boldref_buffer = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                'jolt',
+                'jump',
+                'laplacian',
+                'phaseDenoised',
+                'phaseNoise',
+                'unwrapped',
+            ],
+        ),
+        name='boldref_buffer',
+    )
+    boldref_derivatives = []
+    if config.workflow.jolt:
+        boldref_derivatives.append('jolt')
+        jolt_boldref_wf = init_bold_volumetric_resample_wf(
+            metadata=bold_metadata,
+            fieldmap_id=None,  # Ignore the field map for phase data
+            omp_nthreads=omp_nthreads,
+            mem_gb=mem_gb,
+            jacobian=False,
+            name='jolt_boldref_wf',
+        )
+        workflow.connect([
+            (inputnode, jolt_boldref_wf, [
+                ('hmc', 'motion_xfm'),
+                ('boldref2fmap', 'boldref2fmap_xfm'),
+                ('bold_mask_native', 'bold_ref_file'),
+            ]),
+            (calc_jolt, jolt_boldref_wf, [('out_file', 'inputnode.bold_file')]),
+            (jolt_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'jolt')]),
+        ])  # fmt:skip
+
+    if config.workflow.jump:
+        boldref_derivatives.append('jump')
+        jump_boldref_wf = init_bold_volumetric_resample_wf(
+            metadata=bold_metadata,
+            fieldmap_id=None,  # Ignore the field map for phase data
+            omp_nthreads=omp_nthreads,
+            mem_gb=mem_gb,
+            jacobian=False,
+            name='jump_boldref_wf',
+        )
+        workflow.connect([
+            (inputnode, jump_boldref_wf, [
+                ('hmc', 'motion_xfm'),
+                ('boldref2fmap', 'boldref2fmap_xfm'),
+                ('bold_mask_native', 'bold_ref_file'),
+            ]),
+            (calc_jump, jump_boldref_wf, [('out_file', 'inputnode.bold_file')]),
+            (jump_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'jump')]),
+        ])  # fmt:skip
+
+    if config.workflow.laplacian:
+        boldref_derivatives.append('laplacian')
+        laplacian_boldref_wf = init_bold_volumetric_resample_wf(
+            metadata=bold_metadata,
+            fieldmap_id=None,  # Ignore the field map for phase data
+            omp_nthreads=omp_nthreads,
+            mem_gb=mem_gb,
+            jacobian=False,
+            name='laplacian_boldref_wf',
+        )
+        workflow.connect([
+            (inputnode, laplacian_boldref_wf, [
+                ('hmc', 'motion_xfm'),
+                ('boldref2fmap', 'boldref2fmap_xfm'),
+                ('bold_mask_native', 'bold_ref_file'),
+            ]),
+            (calc_laplacian, laplacian_boldref_wf, [('out_file', 'inputnode.bold_file')]),
+            (laplacian_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'laplacian')]),
+        ])  # fmt:skip
+
+    if config.workflow.regression_method:
+        boldref_derivatives.append('phaseDenoised')
+        boldref_derivatives.append('phaseNoise')
+        workflow.connect([
+            (phase_regression_wf, boldref_buffer, [
+                ('outputnode.denoised_magnitude', 'phaseDenoised'),
+                ('outputnode.phase', 'phaseNoise'),
+            ]),
+        ])  # fmt:skip
+
+    if config.workflow.unwrapped_phase:
+        boldref_derivatives.append('unwrapped')
+        workflow.connect([
+            (phase_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'unwrapped')]),
+        ])  # fmt:skip
+
+    for boldref_derivative in boldref_derivatives:
+        # Carpet plot
+        deriv_carpetplot_wf = init_carpetplot_wf(
+            mem_gb=mem_gb,
+            metadata=bold_metadata,
+            cifti_output=config.workflow.cifti_output,
+            name=f'{boldref_derivative}_carpet_wf',
+        )
+        deriv_carpetplot_wf.inputs.inputnode.desc = boldref_derivative
+        workflow.connect([
+            (inputnode, deriv_carpetplot_wf, [
+                ('bold_mask_native', 'bold_mask'),
+                ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                ('mni2009c2anat_xfm', 'inputnode.std2anat_xfm'),
+            ]),
+            (boldref_buffer, deriv_carpetplot_wf, [(boldref_derivative, 'inputnode.bold')]),
+            (bold_confounds_wf, deriv_carpetplot_wf, [
+                ('outputnode.confounds_file', 'inputnode.confounds_file'),
+            ]),
+        ])  # fmt:skip
+
+    # TODO: Wrangle desired output spaces and warp derivatives to them
+    boldref_out = bool(nonstd_spaces.intersection(('func', 'run', 'bold', 'boldref', 'sbref')))
+
+    if boldref_out:
+        for boldref_derivative in boldref_derivatives:
+            # jolt, jump, laplacian, unwrapped phase, denoising summary maps
+            ds_deriv_boldref = pe.Node(
+                DerivativesDataSink(
+                    desc=boldref_derivative,
+                    part='phase',
+                    suffix='bold',
+                ),
+                name=f'ds_{boldref_derivative}_boldref',
+            )
+            workflow.connect([
+                (boldref_buffer, ds_deriv_boldref, [(boldref_derivative, 'in_file')]),
+            ])  # fmt:skip
+
+    # Full derivatives, including resampled BOLD series
+    if nonstd_spaces.intersection(('anat', 'T1w')):
+        ...
+
+    if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
+        ...
+
+    if config.workflow.run_reconall and freesurfer_spaces:
+        ...
+
+    if config.workflow.cifti_output:
+        ...
 
     # Fill-in datasinks seen so far
     for node in workflow.list_node_names():
