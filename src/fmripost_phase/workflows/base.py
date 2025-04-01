@@ -308,7 +308,6 @@ Functional data postprocessing
                 ]),
             ])  # fmt:skip
 
-
     return clean_datasinks(workflow)
 
 
@@ -389,7 +388,7 @@ def init_single_run_wf(bold_file):
         if config.workflow.dummy_scans is None:
             raise ValueError(
                 'No confounds detected. '
-                'Automatical dummy scan detection cannot be performed. '
+                'Automatic dummy scan detection cannot be performed. '
                 'Please set the `--dummy-scans` flag explicitly.'
             )
 
@@ -417,14 +416,18 @@ def init_single_run_wf(bold_file):
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
+                # raw data
                 'magnitude_raw',
                 'phase_raw',
                 'magnitude_norf',
                 'phase_norf',
+                # confounds
+                'confounds',
+                # transforms to boldref
                 'hmc',
                 'boldref2fmap',
                 'bold_mask_native',
-                'confounds',
+                # transforms to std spaces
                 'anat2std_xfm',
                 'std_space',
                 'std_resolution',
