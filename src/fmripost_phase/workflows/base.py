@@ -327,6 +327,7 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.interfaces.warpkit import ROMEOUnwrap, WarpkitUnwrap
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
     from fmripost_phase.workflows.confounds import init_bold_confs_wf, init_carpetplot_wf
+    from fmripost_phase.workflows.denoising import init_denoise_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
     spaces = config.workflow.spaces
@@ -521,8 +522,8 @@ def init_single_run_wf(bold_file):
     )
     if config.workflow.thermal_denoise_method:
         # Run LLR denoising on the magnitude and phase data
-        denoise_wf = pe.Node(
-            niu.IdentityInterface(fields=['magnitude', 'phase', 'magnitude_norf', 'phase_norf']),
+        denoise_wf = init_denoise_wf(
+            mem_gb=mem_gb,
             name='denoise_wf',
         )
         if has_norf:
