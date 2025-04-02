@@ -14,7 +14,7 @@ def init_denoise_wf(
 
     from fmripost_phase import config
     from fmripost_phase.interfaces.bids import DerivativesDataSink
-    from fmripost_phase.interfaces.denoising import NORDIC
+    from fmripost_phase.interfaces.denoising import NORDIC, DWIDenoise
     from fmripost_phase.utils.utils import clean_datasinks
 
     workflow = Workflow(name=name)
@@ -50,10 +50,9 @@ def init_denoise_wf(
             mem_gb=mem_gb,
         )
     else:
+        # TODO: Combine magnitude and phase into complex data
         denoise = pe.Node(
-            DWIDenoise(
-                algorithm='mppca',
-            ),
+            DWIDenoise(),
             name='denoise',
             mem_gb=mem_gb,
         )

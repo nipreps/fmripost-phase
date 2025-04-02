@@ -2,7 +2,6 @@
 
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
-    Directory,
     File,
     SimpleInterface,
     TraitedSpec,
