@@ -351,6 +351,7 @@ def init_single_run_wf(bold_file):
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
     entities = {'bold': extract_entities(bold_file), 'anat': {}}
+    entities['anat']['subject'] = entities['bold']['subject']
     if 'session' in entities['bold']:
         entities['anat']['session'] = [entities['bold']['session'], None]
 
