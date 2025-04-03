@@ -171,6 +171,8 @@ def collect_derivatives(
 
             if k == 'boldref2fmap':
                 query['to'] = fieldmap_id
+            elif k == 'anat2outputspaces_xfm':
+                continue
 
             item = layout.get(return_type='filename', **query)
             if not item:
@@ -226,7 +228,7 @@ def collect_derivatives(
             item = raw_layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
-            elif not allow_multiple and len(item) > 1 and k != 'anat2outputspaces_xfm':
+            elif not allow_multiple and len(item) > 1:
                 raise ValueError(f'Multiple files found for {k}: {item}')
             else:
                 derivs_cache[k] = item[0] if len(item) == 1 else item
