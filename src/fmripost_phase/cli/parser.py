@@ -189,6 +189,13 @@ def _build_parser(**kwargs):
         help='Phase regression method to apply, if any.',
     )
     g_phase.add_argument(
+        '--noise-filter',
+        action='store',
+        default=0.01,
+        dest='noise_filter',
+        help='High-pass filter threshold for noise estimation in ODR phase regression.',
+    )
+    g_phase.add_argument(
         '--gift-dimensionality',
         action='store',
         default=0,
