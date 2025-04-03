@@ -226,7 +226,7 @@ def collect_derivatives(
             item = raw_layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
-            elif not allow_multiple and len(item) > 1:
+            elif not allow_multiple and len(item) > 1 and k != 'anat2outputspaces_xfm':
                 raise ValueError(f'Multiple files found for {k}: {item}')
             else:
                 derivs_cache[k] = item[0] if len(item) == 1 else item
