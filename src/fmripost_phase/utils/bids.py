@@ -120,6 +120,8 @@ def collect_derivatives(
     if not entities:
         entities = {}
 
+    print(entities)
+
     if spec is None or patterns is None:
         _spec = json.loads(load_data.readable('io_spec.json').read_text())
 
@@ -218,7 +220,7 @@ def collect_derivatives(
             )
 
     # Search for raw BOLD data
-    if not derivs_cache and raw_dataset is not None:
+    if raw_dataset is not None:
         if isinstance(raw_dataset, Path):
             raw_layout = BIDSLayout(raw_dataset, config=['bids'], validate=False)
         else:
