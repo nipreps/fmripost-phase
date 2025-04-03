@@ -176,7 +176,7 @@ def init_bold_confs_wf(
         (highcor, outputnode, [('high_variance_masks', 'highcor_mask')]),
         (highcor, rois_plot, [('high_variance_masks', 'in_rois')]),
         (rois_plot, ds_report_bold_rois, [('out_report', 'in_file')]),
-        (highcor, compcor_plot, [('metadata_file', 'in1')]),
+        (highcor, compcor_plot, [('metadata_file', 'metadata_files')]),
         (compcor_plot, ds_report_compcor, [('out_file', 'in_file')]),
     ])  # fmt:skip
 
