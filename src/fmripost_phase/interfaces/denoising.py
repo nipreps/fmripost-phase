@@ -168,7 +168,7 @@ class DWIDenoiseInputSpec(MRTrix3BaseInputSpec):
         argstr='-extent %d,%d,%d',
         desc='set the window size of the denoising filter. (default = 5,5,5)',
     )
-    noise_image = File(
+    noise = File(
         argstr='-noise %s',
         name_template='%s_noise.nii.gz',
         name_source=['in_file'],
@@ -186,7 +186,7 @@ class DWIDenoiseInputSpec(MRTrix3BaseInputSpec):
 
 
 class DWIDenoiseOutputSpec(TraitedSpec):
-    noise_image = File(desc='the output noise map', exists=True)
+    noise = File(desc='the output noise map', exists=True)
     out_file = File(desc='the output denoised DWI image', exists=True)
 
 

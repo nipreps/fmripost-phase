@@ -27,6 +27,8 @@ import os
 import nibabel as nb
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
+    CommandLine,
+    CommandLineInputSpec,
     File,
     SimpleInterface,
     TraitedSpec,
@@ -211,3 +213,79 @@ class SplitNoise(SimpleInterface):
         data_img.to_filename(self._results['out_file'])
         noise_img.to_filename(self._results['noise_file'])
         return runtime
+
+
+class _PolarToComplexInputSpec(CommandLineInputSpec):
+    mag_file = traits.File(exists=True, mandatory=True, position=0, argstr='%s')
+    phase_file = traits.File(exists=True, mandatory=True, position=1, argstr='%s')
+    out_file = traits.File(
+        exists=False,
+        name_source='mag_file',
+        name_template='%s_complex.nii.gz',
+        keep_extension=False,
+        position=-1,
+        argstr='-polar %s',
+    )
+
+
+class _PolarToComplexOutputSpec(TraitedSpec):
+    out_file = File(exists=True)
+
+
+class PolarToComplex(CommandLine):
+    """Convert a magnitude and phase image pair to a single complex image using mrcalc."""
+
+    input_spec = _PolarToComplexInputSpec
+    output_spec = _PolarToComplexOutputSpec
+
+    _cmd = 'mrcalc'
+
+
+class _ComplexToMagnitudeInputSpec(CommandLineInputSpec):
+    complex_file = traits.File(exists=True, mandatory=True, position=0, argstr='%s')
+    out_file = traits.File(
+        exists=False,
+        name_source='complex_file',
+        name_template='%s_mag.nii.gz',
+        keep_extension=False,
+        position=-1,
+        argstr='-abs %s',
+    )
+
+
+class _ComplexToMagnitudeOutputSpec(TraitedSpec):
+    out_file = File(exists=True)
+
+
+class ComplexToMagnitude(CommandLine):
+    """Extract the magnitude portion of a complex image using mrcalc."""
+
+    input_spec = _ComplexToMagnitudeInputSpec
+    output_spec = _ComplexToMagnitudeOutputSpec
+
+    _cmd = 'mrcalc'
+
+
+class _ComplexToPhaseInputSpec(CommandLineInputSpec):
+    complex_file = traits.File(exists=True, mandatory=True, position=0, argstr='%s')
+    out_file = traits.File(
+        exists=False,
+        name_source='complex_file',
+        name_template='%s_pha.nii.gz',
+        keep_extension=False,
+        position=-1,
+        argstr='-phase %s',
+    )
+
+
+class _ComplexToPhaseOutputSpec(TraitedSpec):
+    out_file = File(exists=True)
+
+
+class ComplexToPhase(CommandLine):
+    """Extract the phase portion of a complex image using mrcalc."""
+
+    input_spec = _ComplexToPhaseInputSpec
+    output_spec = _ComplexToPhaseOutputSpec
+
+    _cmd = 'mrcalc'

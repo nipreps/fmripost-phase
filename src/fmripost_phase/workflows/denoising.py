@@ -1,24 +1,22 @@
 """Denoising workflows."""
 
 
-def init_denoise_wf(
+def init_nordic_wf(
     mem_gb: float,
-    name: str = 'denoise_wf',
+    name: str = 'nordic_wf',
 ):
-    """Build a workflow to apply thermal denoising."""
+    """Build a workflow to apply thermal denoising with NORDIC."""
     from fmriprep.utils.bids import dismiss_echo
     from nipype.interfaces import utility as niu
     from nipype.pipeline import engine as pe
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.reportlets.masks import ROIsPlot
 
-    from fmripost_phase import config
     from fmripost_phase.interfaces.bids import DerivativesDataSink
-    from fmripost_phase.interfaces.denoising import NORDIC, DWIDenoise
+    from fmripost_phase.interfaces.denoising import NORDIC
     from fmripost_phase.utils.utils import clean_datasinks
 
     workflow = Workflow(name=name)
-
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
@@ -40,23 +38,14 @@ def init_denoise_wf(
         name='outputnode',
     )
 
-    if config.workflow.thermal_denoise_method == 'nordic':
-        denoise = pe.Node(
-            NORDIC(
-                algorithm='nordic',
-                save_gfactor_map=True,
-            ),
-            name='denoise',
-            mem_gb=mem_gb,
-        )
-    else:
-        # TODO: Combine magnitude and phase into complex data
-        denoise = pe.Node(
-            DWIDenoise(),
-            name='denoise',
-            mem_gb=mem_gb,
-        )
-
+    denoise = pe.Node(
+        NORDIC(
+            algorithm='nordic',
+            save_gfactor_map=True,
+        ),
+        name='denoise',
+        mem_gb=mem_gb,
+    )
     workflow.connect([
         (inputnode, denoise, [
             ('magnitude', 'magnitude'),
@@ -118,6 +107,121 @@ def init_denoise_wf(
     )
     workflow.connect([
         (denoise, noise_plot, [('noise', 'in_file')]),
+        (noise_plot, ds_report_noise, [('out_report', 'in_file')]),
+    ])  # fmt:skip
+
+    return clean_datasinks(workflow)
+
+
+def init_dwidenoise_wf(
+    mem_gb: float,
+    name: str = 'dwidenoise_wf',
+):
+    """Build a workflow to apply thermal denoising with dwidenoise."""
+    from fmriprep.utils.bids import dismiss_echo
+    from nipype.interfaces import utility as niu
+    from nipype.pipeline import engine as pe
+    from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+    from niworkflows.interfaces.reportlets.masks import ROIsPlot
+
+    from fmripost_phase import config
+    from fmripost_phase.interfaces.bids import DerivativesDataSink
+    from fmripost_phase.interfaces.complex import (
+        ComplexToMagnitude,
+        ComplexToPhase,
+        PolarToComplex,
+    )
+    from fmripost_phase.interfaces.denoising import DWIDenoise
+    from fmripost_phase.utils.utils import clean_datasinks
+
+    omp_nthreads = config.nipype.omp_nthreads
+
+    workflow = Workflow(name=name)
+    inputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                'magnitude',
+                'phase',
+                'magnitude_norf',
+                'phase_norf',
+            ],
+        ),
+        name='inputnode',
+    )
+    outputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=[
+                'magnitude',
+                'phase',
+            ],
+        ),
+        name='outputnode',
+    )
+
+    # Phase data are already in radians (-pi to pi)
+    combine_complex = pe.Node(
+        PolarToComplex(),
+        name='combine_complex',
+        n_procs=omp_nthreads,
+    )
+    workflow.connect([
+        (inputnode, combine_complex, [
+            ('magnitude', 'mag_file'),
+            ('phase', 'phase_file'),
+        ]),
+    ])  # fmt:skip
+
+    denoise = pe.Node(
+        DWIDenoise(),
+        name='denoise',
+        mem_gb=mem_gb,
+    )
+    workflow.connect([(combine_complex, denoise, [('out_file', 'in_file')])])
+
+    complex_to_magnitude = pe.Node(
+        ComplexToMagnitude(),
+        name='complex_to_magnitude',
+        n_procs=omp_nthreads,
+    )
+    workflow.connect([
+        (denoise, complex_to_magnitude, [('out_file', 'complex_file')]),
+        (complex_to_magnitude, outputnode, [('out_file', 'magnitude')]),
+    ])  # fmt:skip
+
+    complex_to_phase = pe.Node(
+        ComplexToPhase(),
+        name='complex_to_phase',
+        n_procs=omp_nthreads,
+    )
+    workflow.connect([
+        (denoise, complex_to_phase, [('out_file', 'complex_file')]),
+        (complex_to_phase, outputnode, [('out_file', 'phase')]),
+    ])  # fmt:skip
+
+    # I think the noise map needs to be rescaled (divide by sqrt(2))
+    rescale_noise = pe.Node(
+        niu.Apply(
+            expr='i / sqrt(2)',
+            output_name='out_file',
+        ),
+        name='rescale_noise',
+    )
+    workflow.connect([(denoise, rescale_noise, [('noise', 'in_file')])])
+
+    # Generate reportlet (Noise)
+    noise_plot = pe.Node(
+        ROIsPlot(),
+        name='noise_plot',
+        mem_gb=mem_gb,
+    )
+    ds_report_noise = pe.Node(
+        DerivativesDataSink(desc='thermalnoise', dismiss_entities=dismiss_echo()),
+        name='ds_report_noise',
+        run_without_submitting=True,
+        mem_gb=mem_gb,
+    )
+    workflow.connect([
+        (rescale_noise, noise_plot, [('out_file', 'in_file')]),
         (noise_plot, ds_report_noise, [('out_report', 'in_file')]),
     ])  # fmt:skip
 
