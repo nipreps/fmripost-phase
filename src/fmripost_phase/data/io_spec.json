@@ -27,15 +27,6 @@
                     ".nii.gz",
                     ".nii"
                 ]
-            },
-            "bold_phase_norf": {
-                "datatype": "func",
-                "part": "phase",
-                "suffix": "noRF",
-                "extension": [
-                    ".nii.gz",
-                    ".nii"
-                ]
             }
         },
         "derivatives": {

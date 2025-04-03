@@ -149,11 +149,10 @@ def collect_derivatives(
 
         for k, q in spec['derivatives'].items():
             # Combine entities with query. Query values override file entities.
-            query = {**entities, **q}
             if k.startswith('bold'):
-                query = {**bold_filters, **query}
+                query = {**bold_filters, **entities.get('bold', {}), **q}
             elif k.startswith('anat'):
-                query = {**anat_filters, **query}
+                query = {**anat_filters, **entities.get('anat', {}), **q}
 
             item = layout.get(return_type='filename', **query)
             if not item:
@@ -165,12 +164,10 @@ def collect_derivatives(
 
         for k, q in spec['transforms'].items():
             # Combine entities with query. Query values override file entities.
-            # TODO: Drop functional entities (task, run, etc.) from anat transforms.
-            query = {**entities, **q}
             if k.startswith('bold'):
-                query = {**bold_filters, **query}
+                query = {**bold_filters, **entities.get('bold', {}), **q}
             elif k.startswith('anat'):
-                query = {**anat_filters, **query}
+                query = {**anat_filters, **entities.get('anat', {}), **q}
 
             if k == 'boldref2fmap':
                 query['to'] = fieldmap_id
@@ -190,7 +187,7 @@ def collect_derivatives(
             # First try to find processed BOLD+mask files in the requested space
             anat2space_query = {
                 **anat_filters,
-                **entities,
+                **entities.get('anat', {}),
                 **spec['transforms']['anat2outputspaces_xfm'],
             }
             anat2space_query['to'] = space.space
@@ -219,11 +216,10 @@ def collect_derivatives(
 
         for k, q in spec['raw'].items():
             # Combine entities with query. Query values override file entities.
-            query = {**entities, **q}
             if k.startswith('bold'):
-                query = {**bold_filters, **query}
+                query = {**bold_filters, **entities.get('bold', {}), **q}
             elif k.startswith('anat'):
-                query = {**anat_filters, **query}
+                query = {**anat_filters, **entities.get('anat', {}), **q}
 
             print(k)
             print(query)
