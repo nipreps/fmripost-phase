@@ -55,6 +55,7 @@
             "bold_hmc": {
                 "datatype": "func",
                 "echo": null,
+                "part": null,
                 "from": "orig",
                 "to": "boldref",
                 "mode": "image",
@@ -64,6 +65,7 @@
             "boldref2anat": {
                 "datatype": "func",
                 "echo": null,
+                "part": null,
                 "from": "boldref",
                 "to": ["anat", "T1w", "T2w"],
                 "mode": "image",
@@ -73,6 +75,7 @@
             "boldref2fmap": {
                 "datatype": "func",
                 "echo": null,
+                "part": null,
                 "from": "orig",
                 "mode": "image",
                 "suffix": "xfm",

@@ -664,9 +664,9 @@ def init_single_run_wf(bold_file):
     )
     workflow.connect([
         (inputnode, mag_boldref_wf, [
-            ('hmc', 'motion_xfm'),
-            ('boldref2fmap', 'boldref2fmap_xfm'),
-            ('bold_mask_native', 'bold_ref_file'),
+            ('hmc', 'inputnode.motion_xfm'),
+            ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+            ('bold_mask_native', 'inputnode.bold_ref_file'),
         ]),
     ])  # fmt:skip
 
@@ -690,9 +690,9 @@ def init_single_run_wf(bold_file):
     )
     workflow.connect([
         (inputnode, phase_boldref_wf, [
-            ('hmc', 'motion_xfm'),
-            ('boldref2fmap', 'boldref2fmap_xfm'),
-            ('bold_mask_native', 'bold_ref_file'),
+            ('hmc', 'inputnode.motion_xfm'),
+            ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+            ('bold_mask_native', 'inputnode.bold_ref_file'),
         ]),
         (unwrap_phase, phase_boldref_wf, [('unwrapped', 'inputnode.bold_file')]),
     ])  # fmt:skip
