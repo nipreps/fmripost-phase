@@ -210,8 +210,8 @@ def _build_parser(**kwargs):
         action='store',
         dest='thermal_denoise_method',
         default=None,
-        choices=['mppca'],
-        help='Apply MP-PCA denoising to the BOLD data to remove thermal noise',
+        choices=['mppca', 'nordic'],
+        help='Apply MP-PCA or NORDIC denoising to the BOLD data to remove thermal noise',
     )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
