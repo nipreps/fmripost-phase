@@ -351,10 +351,12 @@ def init_single_run_wf(bold_file):
 
     # Attempt to extract the associated fmap ID
     fmapid = None
-    all_fmapids = config.execution.layout.get_fmapids(
-        subject=entities['subject'],
-        session=entities.get('session', None),
-    )
+    # Skip this for now, because it's not working
+    # all_fmapids = config.execution.layout.get_fmapids(
+    #     subject=entities['subject'],
+    #     session=entities.get('session', None),
+    # )
+    all_fmapids = []
     if all_fmapids:
         fmap_file = config.execution.layout.get_nearest(
             bold_file,
