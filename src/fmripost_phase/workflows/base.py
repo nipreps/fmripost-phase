@@ -186,6 +186,10 @@ It is released under the [CC0]\
     )
     subject_data['bold'] = listify(subject_data['magnitude_raw'])
 
+    config.loggers.workflow.info(
+        f'Collected subject data:\n{yaml.dump(subject_data, default_flow_style=False, indent=4)}',
+    )
+
     # Make sure we always go through these two checks
     if not subject_data['bold']:
         task_id = config.execution.task_id
