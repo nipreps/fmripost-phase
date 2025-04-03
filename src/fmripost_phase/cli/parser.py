@@ -183,8 +183,8 @@ def _build_parser(**kwargs):
     g_phase.add_argument(
         '--regression-method',
         action='store',
-        choices=['odr', 'ols', 'none'],
-        default='none',
+        choices=['odr'],
+        default=None,
         dest='regression_method',
         help='Phase regression method to apply, if any.',
     )

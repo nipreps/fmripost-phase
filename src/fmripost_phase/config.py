@@ -553,6 +553,8 @@ class workflow(_Config):
     """Apply NORDIC or MP-PCA denoising to the BOLD data to remove thermal noise."""
     regression_method = None
     """Phase regression method to apply, if any."""
+    noise_filter = None
+    """High-pass filter threshold for noise estimation in ODR phase regression."""
     retroicor = None
     """Apply RETROICOR denoising."""
     unwrap_phase = None
