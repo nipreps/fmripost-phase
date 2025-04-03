@@ -54,6 +54,7 @@
         "transforms": {
             "hmc": {
                 "datatype": "func",
+                "echo": null,
                 "from": "orig",
                 "to": "boldref",
                 "mode": "image",
@@ -62,6 +63,7 @@
             },
             "boldref2anat": {
                 "datatype": "func",
+                "echo": null,
                 "from": "boldref",
                 "to": ["anat", "T1w", "T2w"],
                 "mode": "image",
@@ -70,6 +72,7 @@
             },
             "boldref2fmap": {
                 "datatype": "func",
+                "echo": null,
                 "from": "orig",
                 "mode": "image",
                 "suffix": "xfm",
@@ -77,6 +80,7 @@
             },
             "anat2outputspaces_xfm": {
                 "datatype": "anat",
+                "echo": null,
                 "from": ["anat", "T1w", "T2w"],
                 "mode": "image",
                 "suffix": "xfm",
