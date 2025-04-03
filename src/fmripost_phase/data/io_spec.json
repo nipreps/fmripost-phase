@@ -19,6 +19,15 @@
                     ".nii"
                 ]
             },
+            "bold_magnitude_norf": {
+                "datatype": "func",
+                "part": "mag",
+                "suffix": "noRF",
+                "extension": [
+                    ".nii.gz",
+                    ".nii"
+                ]
+            },
             "bold_phase_norf": {
                 "datatype": "func",
                 "part": "phase",

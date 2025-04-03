@@ -385,6 +385,7 @@ def init_single_run_wf(bold_file):
         allow_multiple=False,
         spaces=None,
     )
+    print(functional_cache)
     for deriv_dir in config.execution.derivatives.values():
         functional_cache = update_dict(
             functional_cache,
@@ -398,6 +399,7 @@ def init_single_run_wf(bold_file):
             ),
         )
 
+    print(functional_cache)
     if not functional_cache['confounds']:
         if config.workflow.dummy_scans is None:
             raise ValueError(

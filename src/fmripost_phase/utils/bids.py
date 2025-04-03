@@ -154,6 +154,8 @@ def collect_derivatives(
             elif k.startswith('anat'):
                 query = {**anat_filters, **entities.get('anat', {}), **q}
 
+            print(k)
+            print(query)
             item = layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
@@ -174,6 +176,8 @@ def collect_derivatives(
             elif k == 'anat2outputspaces_xfm':
                 continue
 
+            print(k)
+            print(query)
             item = layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
