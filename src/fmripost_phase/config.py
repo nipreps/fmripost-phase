@@ -509,8 +509,9 @@ class execution(_Config):
                     )
 
             # unserialize pybids Query enum values
-            for entity, values in cls.bids_filters.items():
-                cls.bids_filters[entity] = _process_value(values)
+            for acq, filters in cls.bids_filters.items():
+                for k, v in filters.items():
+                    cls.bids_filters[acq][k] = _process_value(v)
 
         dataset_links = {
             'raw': cls.bids_dir,
@@ -552,6 +553,8 @@ class workflow(_Config):
     """Apply NORDIC or MP-PCA denoising to the BOLD data to remove thermal noise."""
     regression_method = None
     """Phase regression method to apply, if any."""
+    noise_filter = None
+    """High-pass filter threshold for noise estimation in ODR phase regression."""
     retroicor = None
     """Apply RETROICOR denoising."""
     unwrap_phase = None
@@ -562,6 +565,8 @@ class workflow(_Config):
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     dummy_scans = None
     """Set a number of initial scans to be considered nonsteady states."""
+    regressors_all_comps = None
+    """Include all components estimated in CompCor decomposition in the confounds file."""
 
 
 class loggers:

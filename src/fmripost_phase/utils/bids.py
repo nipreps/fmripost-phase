@@ -32,6 +32,7 @@ from bids.layout import BIDSLayout
 from bids.utils import listify
 from niworkflows.utils.spaces import SpatialReferences
 
+from fmripost_phase import config
 from fmripost_phase.data import load as load_data
 
 
@@ -122,6 +123,10 @@ def collect_derivatives(
 
     print(entities)
 
+    bids_filters = config.execution.bids_filters or {}
+    bold_filters = bids_filters.get('bold', {})
+    anat_filters = bids_filters.get('anat', {})
+
     if spec is None or patterns is None:
         _spec = json.loads(load_data.readable('io_spec.json').read_text())
 
@@ -144,7 +149,13 @@ def collect_derivatives(
 
         for k, q in spec['derivatives'].items():
             # Combine entities with query. Query values override file entities.
-            query = {**entities, **q}
+            if k.startswith('bold'):
+                query = {**bold_filters, **entities.get('bold', {}), **q}
+            elif k.startswith('anat'):
+                query = {**anat_filters, **entities.get('anat', {}), **q}
+
+            print(k)
+            print(query)
             item = layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
@@ -155,11 +166,18 @@ def collect_derivatives(
 
         for k, q in spec['transforms'].items():
             # Combine entities with query. Query values override file entities.
-            # TODO: Drop functional entities (task, run, etc.) from anat transforms.
-            query = {**entities, **q}
+            if k.startswith('bold'):
+                query = {**bold_filters, **entities.get('bold', {}), **q}
+            elif k.startswith('anat'):
+                query = {**anat_filters, **entities.get('anat', {}), **q}
+
             if k == 'boldref2fmap':
                 query['to'] = fieldmap_id
+            elif k == 'anat2outputspaces_xfm':
+                continue
 
+            print(k)
+            print(query)
             item = layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
@@ -170,41 +188,17 @@ def collect_derivatives(
 
     # Search for requested output spaces
     if spaces is not None:
-        # Put the output-space files/transforms in lists so they can be parallelized with
-        # template_iterator_wf.
-        spaces_found, bold_outputspaces, bold_mask_outputspaces = [], [], []
-        for space in spaces.references:
-            # First try to find processed BOLD+mask files in the requested space
-            bold_query = {**entities, **spec['derivatives']['bold_mni152nlin6asym']}
-            bold_query['space'] = space.space
-            bold_query = {**bold_query, **space.spec}
-            bold_item = layout.get(return_type='filename', **bold_query)
-            bold_outputspaces.append(bold_item[0] if bold_item else None)
-
-            mask_query = {**entities, **spec['derivatives']['bold_mask_mni152nlin6asym']}
-            mask_query['space'] = space.space
-            mask_query = {**mask_query, **space.spec}
-            mask_item = layout.get(return_type='filename', **mask_query)
-            bold_mask_outputspaces.append(mask_item[0] if mask_item else None)
-
-            spaces_found.append(bool(bold_item) and bool(mask_item))
-
-        if all(spaces_found):
-            derivs_cache['bold_outputspaces'] = bold_outputspaces
-            derivs_cache['bold_mask_outputspaces'] = bold_mask_outputspaces
-        else:
-            # The requested spaces were not found, try to find transforms
-            print(
-                'Not all requested output spaces were found. '
-                'We will try to find transforms to these spaces and apply them to the BOLD data.',
-                flush=True,
-            )
-
         spaces_found, anat2outputspaces_xfm = [], []
         for space in spaces.references:
             # First try to find processed BOLD+mask files in the requested space
-            anat2space_query = {**entities, **spec['transforms']['anat2mni152nlin6asym']}
+            anat2space_query = {
+                **anat_filters,
+                **entities.get('anat', {}),
+                **spec['transforms']['anat2outputspaces_xfm'],
+            }
             anat2space_query['to'] = space.space
+            print(space)
+            print(anat2space_query)
             item = layout.get(return_type='filename', **anat2space_query)
             anat2outputspaces_xfm.append(item[0] if item else None)
             spaces_found.append(bool(item))
@@ -228,7 +222,11 @@ def collect_derivatives(
 
         for k, q in spec['raw'].items():
             # Combine entities with query. Query values override file entities.
-            query = {**entities, **q}
+            if k.startswith('bold'):
+                query = {**bold_filters, **entities.get('bold', {}), **q}
+            elif k.startswith('anat'):
+                query = {**anat_filters, **entities.get('anat', {}), **q}
+
             print(k)
             print(query)
             item = raw_layout.get(return_type='filename', **query)

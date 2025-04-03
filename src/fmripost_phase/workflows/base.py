@@ -175,16 +175,20 @@ It is released under the [CC0]\
 """
 
     # Raw dataset + derivatives dataset
+    entities = {'bold': {'subject': subject_id}, 'anat': {'subject': subject_id}}
+    if config.execution.task_id:
+        entities['bold']['task'] = config.execution.task_id
+
     config.loggers.workflow.info('Raw+derivatives workflow mode enabled')
     subject_data = collect_derivatives(
         raw_dataset=config.execution.layout,
         derivatives_dataset=None,
-        entities=config.execution.bids_filters,
+        entities=entities,
         fieldmap_id=None,
         allow_multiple=True,
         spaces=None,
     )
-    subject_data['bold'] = listify(subject_data['magnitude_raw'])
+    subject_data['bold'] = listify(subject_data['bold_magnitude_raw'])
 
     config.loggers.workflow.info(
         f'Collected subject data:\n{yaml.dump(subject_data, default_flow_style=False, indent=4)}',
@@ -346,15 +350,19 @@ def init_single_run_wf(bold_file):
     mem_gb = estimate_bold_mem_usage(bold_file)[1]
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
-    entities = config.execution.bids_filters or {}
-    entities = {**entities, **extract_entities(bold_file)}
+    entities = {'bold': extract_entities(bold_file), 'anat': {}}
+    entities['anat']['subject'] = entities['bold']['subject']
+    if 'session' in entities['bold']:
+        entities['anat']['session'] = [entities['bold']['session'], None]
 
     # Attempt to extract the associated fmap ID
     fmapid = None
-    all_fmapids = config.execution.layout.get_fmapids(
-        subject=entities['subject'],
-        session=entities.get('session', None),
-    )
+    # Skip this for now, because it's not working
+    # all_fmapids = config.execution.layout.get_fmapids(
+    #     subject=entities['subject'],
+    #     session=entities.get('session', None),
+    # )
+    all_fmapids = []
     if all_fmapids:
         fmap_file = config.execution.layout.get_nearest(
             bold_file,
@@ -377,6 +385,7 @@ def init_single_run_wf(bold_file):
         allow_multiple=False,
         spaces=None,
     )
+    print(functional_cache)
     for deriv_dir in config.execution.derivatives.values():
         functional_cache = update_dict(
             functional_cache,
@@ -390,7 +399,8 @@ def init_single_run_wf(bold_file):
             ),
         )
 
-    if not functional_cache['confounds']:
+    print(functional_cache)
+    if not functional_cache['bold_confounds']:
         if config.workflow.dummy_scans is None:
             raise ValueError(
                 'No confounds detected. '
@@ -411,13 +421,13 @@ def init_single_run_wf(bold_file):
     if config.workflow.dummy_scans is not None:
         skip_vols = config.workflow.dummy_scans
     else:
-        if not functional_cache['confounds']:
+        if not functional_cache['bold_confounds']:
             raise ValueError(
                 'No confounds detected. '
                 'Automatical dummy scan detection cannot be performed. '
                 'Please set the `--dummy-scans` flag explicitly.'
             )
-        skip_vols = get_nss(functional_cache['confounds'])
+        skip_vols = get_nss(functional_cache['bold_confounds'])
 
     inputnode = pe.Node(
         niu.IdentityInterface(
@@ -432,7 +442,7 @@ def init_single_run_wf(bold_file):
                 # transforms to boldref
                 'hmc',
                 'boldref2fmap',
-                'bold_mask_native',
+                'bold_mask',
                 'boldref2anat_xfm',
                 'anat_mask',
                 # transforms to std spaces
@@ -447,14 +457,14 @@ def init_single_run_wf(bold_file):
         ),
         name='inputnode',
     )
-    inputnode.inputs.magnitude_raw = functional_cache['magnitude_raw']
-    inputnode.inputs.phase_raw = functional_cache['phase_raw']
-    inputnode.inputs.magnitude_norf = functional_cache['magnitude_norf']
-    inputnode.inputs.phase_norf = functional_cache['phase_norf']
-    inputnode.inputs.hmc = functional_cache['hmc']
+    inputnode.inputs.magnitude_raw = functional_cache['bold_magnitude_raw']
+    inputnode.inputs.phase_raw = functional_cache['bold_phase_raw']
+    inputnode.inputs.magnitude_norf = functional_cache['bold_magnitude_norf']
+    inputnode.inputs.phase_norf = functional_cache['bold_phase_norf']
+    inputnode.inputs.hmc = functional_cache['bold_hmc']
     inputnode.inputs.boldref2fmap = functional_cache['boldref2fmap']
-    inputnode.inputs.bold_mask_native = functional_cache['bold_mask_native']
-    inputnode.inputs.confounds = functional_cache['confounds']
+    inputnode.inputs.bold_mask = functional_cache['bold_mask_native']
+    inputnode.inputs.confounds = functional_cache['bold_confounds']
     # Field maps
     inputnode.inputs.fmap = functional_cache['fmap']
 
@@ -654,9 +664,9 @@ def init_single_run_wf(bold_file):
     )
     workflow.connect([
         (inputnode, mag_boldref_wf, [
-            ('hmc', 'motion_xfm'),
-            ('boldref2fmap', 'boldref2fmap_xfm'),
-            ('bold_mask_native', 'bold_ref_file'),
+            ('hmc', 'inputnode.motion_xfm'),
+            ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+            ('bold_mask', 'inputnode.bold_ref_file'),
         ]),
     ])  # fmt:skip
 
@@ -680,9 +690,9 @@ def init_single_run_wf(bold_file):
     )
     workflow.connect([
         (inputnode, phase_boldref_wf, [
-            ('hmc', 'motion_xfm'),
-            ('boldref2fmap', 'boldref2fmap_xfm'),
-            ('bold_mask_native', 'bold_ref_file'),
+            ('hmc', 'inputnode.motion_xfm'),
+            ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+            ('bold_mask', 'inputnode.bold_ref_file'),
         ]),
         (unwrap_phase, phase_boldref_wf, [('unwrapped', 'inputnode.bold_file')]),
     ])  # fmt:skip
@@ -702,7 +712,7 @@ def init_single_run_wf(bold_file):
             metadata=bold_metadata,
         )
         workflow.connect([
-            (inputnode, phase_regression_wf, [('bold_mask_native', 'bold_mask')]),
+            (inputnode, phase_regression_wf, [('bold_mask', 'inputnode.bold_mask')]),
             (phase_boldref_wf, phase_regression_wf, [('outputnode.bold_file', 'inputnode.phase')]),
             (mag_boldref_wf, phase_regression_wf, [
                 ('outputnode.bold_file', 'inputnode.magnitude'),
@@ -747,7 +757,7 @@ def init_single_run_wf(bold_file):
     )
     bold_confounds_wf.inputs.inputnode.skip_vols = skip_vols
     workflow.connect([
-        (inputnode, bold_confounds_wf, [('bold_mask_native', 'bold_mask')]),
+        (inputnode, bold_confounds_wf, [('bold_mask', 'inputnode.bold_mask')]),
         (phase_boldref_wf, bold_confounds_wf, [('outputnode.bold_file', 'inputnode.phase')]),
     ])  # fmt:skip
 
@@ -816,9 +826,9 @@ def init_single_run_wf(bold_file):
         workflow.connect([
             (calc_jolt, native_buffer, [('out_file', 'jolt')]),
             (inputnode, jolt_boldref_wf, [
-                ('hmc', 'motion_xfm'),
-                ('boldref2fmap', 'boldref2fmap_xfm'),
-                ('bold_mask_native', 'bold_ref_file'),
+                ('hmc', 'inputnode.motion_xfm'),
+                ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask', 'inputnode.bold_ref_file'),
             ]),
             (calc_jolt, jolt_boldref_wf, [('out_file', 'inputnode.bold_file')]),
             (jolt_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'jolt')]),
@@ -843,9 +853,9 @@ def init_single_run_wf(bold_file):
         workflow.connect([
             (calc_jump, native_buffer, [('out_file', 'jump')]),
             (inputnode, jump_boldref_wf, [
-                ('hmc', 'motion_xfm'),
-                ('boldref2fmap', 'boldref2fmap_xfm'),
-                ('bold_mask_native', 'bold_ref_file'),
+                ('hmc', 'inputnode.motion_xfm'),
+                ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask', 'inputnode.bold_ref_file'),
             ]),
             (calc_jump, jump_boldref_wf, [('out_file', 'inputnode.bold_file')]),
             (jump_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'jump')]),
@@ -870,9 +880,9 @@ def init_single_run_wf(bold_file):
         workflow.connect([
             (calc_laplacian, native_buffer, [('out_file', 'laplacian')]),
             (inputnode, laplacian_boldref_wf, [
-                ('hmc', 'motion_xfm'),
-                ('boldref2fmap', 'boldref2fmap_xfm'),
-                ('bold_mask_native', 'bold_ref_file'),
+                ('hmc', 'inputnode.motion_xfm'),
+                ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask', 'inputnode.bold_ref_file'),
             ]),
             (calc_laplacian, laplacian_boldref_wf, [('out_file', 'inputnode.bold_file')]),
             (laplacian_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'laplacian')]),
@@ -898,7 +908,7 @@ def init_single_run_wf(bold_file):
             ]),
         ])  # fmt:skip
 
-    if config.workflow.unwrapped_phase:
+    if config.workflow.unwrap_phase:
         native_derivatives.append('unwrapped')
         boldref_derivatives.append('unwrapped')
         derivative_metadata['unwrapped'] = {
@@ -922,8 +932,8 @@ def init_single_run_wf(bold_file):
         deriv_carpetplot_wf.inputs.inputnode.desc = boldref_derivative
         workflow.connect([
             (inputnode, deriv_carpetplot_wf, [
-                ('bold_mask_native', 'bold_mask'),
-                ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                ('bold_mask', 'inputnode.bold_mask'),
+                ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
                 ('mni2009c2anat_xfm', 'inputnode.std2anat_xfm'),
             ]),
             (boldref_buffer, deriv_carpetplot_wf, [(boldref_derivative, 'inputnode.bold')]),
@@ -960,10 +970,10 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, native_anat_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('bold_mask_native', 'bold_ref_file'),
-                    ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                    ('hmc', 'inputnode.motion_xfm'),
+                    ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                    ('bold_mask', 'inputnode.bold_ref_file'),
+                    ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
                 ]),
                 (native_buffer, native_anat_wf, [(native_derivative, 'inputnode.bold')]),
             ])  # fmt:skip
@@ -992,9 +1002,9 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, boldref_anat_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('bold_mask_native', 'bold_ref_file'),
+                    ('hmc', 'inputnode.motion_xfm'),
+                    ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                    ('bold_mask', 'inputnode.bold_ref_file'),
                 ]),
             ])  # fmt:skip
 
@@ -1024,10 +1034,10 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, native_std_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('bold_mask_native', 'bold_ref_file'),
-                    ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                    ('hmc', 'inputnode.motion_xfm'),
+                    ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                    ('bold_mask', 'inputnode.bold_ref_file'),
+                    ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
                     ('std_t1w', 'inputnode.target_ref_file'),
                     ('std_mask', 'inputnode.target_mask'),
                     ('anat2std_xfm', 'inputnode.anat2std_xfm'),
@@ -1062,7 +1072,7 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, boldref_std_wf, [
-                    ('bold_mask_native', 'bold_ref_file'),
+                    ('bold_mask', 'inputnode.bold_ref_file'),
                     ('std_t1w', 'inputnode.target_ref_file'),
                     ('std_mask', 'inputnode.target_mask'),
                     ('anat2std_xfm', 'inputnode.anat2std_xfm'),
@@ -1084,7 +1094,7 @@ def init_single_run_wf(bold_file):
                 (boldref_std_wf, ds_deriv_std, [('outputnode.bold_file', 'in_file')]),
             ])  # fmt:skip
 
-    if config.workflow.run_reconall and freesurfer_spaces:
+    if freesurfer_spaces:
         ...
 
     if config.workflow.cifti_output:

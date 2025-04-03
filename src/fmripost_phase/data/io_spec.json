@@ -1,7 +1,7 @@
 {
     "queries": {
         "raw": {
-            "magnitude_raw": {
+            "bold_magnitude_raw": {
                 "datatype": "func",
                 "part": "mag",
                 "suffix": "bold",
@@ -10,7 +10,7 @@
                     ".nii"
                 ]
             },
-            "phase_raw": {
+            "bold_phase_raw": {
                 "datatype": "func",
                 "part": "phase",
                 "suffix": "bold",
@@ -19,7 +19,7 @@
                     ".nii"
                 ]
             },
-            "magnitude_norf": {
+            "bold_magnitude_norf": {
                 "datatype": "func",
                 "part": "mag",
                 "suffix": "noRF",
@@ -28,7 +28,7 @@
                     ".nii"
                 ]
             },
-            "phase_norf": {
+            "bold_phase_norf": {
                 "datatype": "func",
                 "part": "phase",
                 "suffix": "noRF",
@@ -39,7 +39,7 @@
             }
         },
         "derivatives": {
-            "confounds": {
+            "bold_confounds": {
                 "datatype": "func",
                 "echo": null,
                 "part": "mag",
@@ -49,31 +49,61 @@
                 "desc": "confounds",
                 "suffix": "timeseries",
                 "extension": ".tsv"
+            },
+            "bold_mask_native": {
+                "datatype": "func",
+                "echo": null,
+                "part": null,
+                "space": null,
+                "res": null,
+                "den": null,
+                "desc": "brain",
+                "suffix": "mask",
+                "extension": [
+                    ".nii.gz",
+                    ".nii"
+                ]
             }
         },
         "transforms": {
-            "hmc": {
+            "bold_hmc": {
                 "datatype": "func",
+                "echo": null,
+                "part": null,
                 "from": "orig",
                 "to": "boldref",
                 "mode": "image",
+                "desc": "hmc",
                 "suffix": "xfm",
                 "extension": ".txt"
             },
             "boldref2anat": {
                 "datatype": "func",
+                "echo": null,
+                "part": null,
                 "from": "boldref",
                 "to": ["anat", "T1w", "T2w"],
                 "mode": "image",
+                "desc": "coreg",
                 "suffix": "xfm",
                 "extension": ".txt"
             },
             "boldref2fmap": {
                 "datatype": "func",
+                "echo": null,
+                "part": null,
                 "from": "orig",
                 "mode": "image",
                 "suffix": "xfm",
                 "extension": ".txt"
+            },
+            "anat2outputspaces_xfm": {
+                "datatype": "anat",
+                "echo": null,
+                "from": ["anat", "T1w", "T2w"],
+                "mode": "image",
+                "suffix": "xfm",
+                "extension": ".h5"
             }
         }
     },

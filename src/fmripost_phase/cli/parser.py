@@ -183,10 +183,17 @@ def _build_parser(**kwargs):
     g_phase.add_argument(
         '--regression-method',
         action='store',
-        choices=['odr', 'ols', 'none'],
-        default='none',
+        choices=['odr'],
+        default=None,
         dest='regression_method',
         help='Phase regression method to apply, if any.',
+    )
+    g_phase.add_argument(
+        '--noise-filter',
+        action='store',
+        default=0.01,
+        dest='noise_filter',
+        help='High-pass filter threshold for noise estimation in ODR phase regression.',
     )
     g_phase.add_argument(
         '--gift-dimensionality',
@@ -212,6 +219,18 @@ def _build_parser(**kwargs):
         default=None,
         choices=['mppca', 'nordic'],
         help='Apply MP-PCA or NORDIC denoising to the BOLD data to remove thermal noise',
+    )
+    g_phase.add_argument(
+        '--return-all-components',
+        dest='regressors_all_comps',
+        required=False,
+        action='store_true',
+        default=False,
+        help=(
+            'Include all components estimated in CompCor decomposition in the confounds '
+            'file instead of only the components sufficient to explain 50 percent of '
+            'BOLD variance in each CompCor mask'
+        ),
     )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
