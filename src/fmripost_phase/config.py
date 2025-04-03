@@ -565,6 +565,8 @@ class workflow(_Config):
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     dummy_scans = None
     """Set a number of initial scans to be considered nonsteady states."""
+    regressors_all_comps = None
+    """Include all components estimated in CompCor decomposition in the confounds file."""
 
 
 class loggers:

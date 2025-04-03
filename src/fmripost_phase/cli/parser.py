@@ -220,6 +220,18 @@ def _build_parser(**kwargs):
         choices=['mppca', 'nordic'],
         help='Apply MP-PCA or NORDIC denoising to the BOLD data to remove thermal noise',
     )
+    g_phase.add_argument(
+        '--return-all-components',
+        dest='regressors_all_comps',
+        required=False,
+        action='store_true',
+        default=False,
+        help=(
+            'Include all components estimated in CompCor decomposition in the confounds '
+            'file instead of only the components sufficient to explain 50 percent of '
+            'BOLD variance in each CompCor mask'
+        ),
+    )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')
     g_bids.add_argument(
