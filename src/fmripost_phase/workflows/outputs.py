@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from fmriprep.interfaces.bids import BIDSURI
+from fmriprep.utils.bids import dismiss_echo
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 
 from fmripost_phase import config
 from fmripost_phase.config import DEFAULT_MEMORY_MIN_GB
 from fmripost_phase.interfaces.bids import DerivativesDataSink
-from fmripost_phase.utils.bids import dismiss_echo
 
 
 def init_ds_bold_native_wf(
