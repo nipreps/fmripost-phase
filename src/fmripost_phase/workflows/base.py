@@ -342,7 +342,8 @@ def init_single_run_wf(bold_file):
     mem_gb = estimate_bold_mem_usage(bold_file)[1]
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
-    entities = extract_entities(bold_file)
+    entities = config.execution.bids_filters or {}
+    entities = {**entities, **extract_entities(bold_file)}
 
     # Attempt to extract the associated fmap ID
     fmapid = None
