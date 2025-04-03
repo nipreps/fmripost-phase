@@ -92,7 +92,7 @@ def run_nordic(
         Default is None.
         default is val1=val2=val3; ratio of 11:1 between spatial and temporal voxels
     phase_slice_average_for_kspace_centering : bool
-        if False, not used, if True the series average pr slice is first removed
+        if False, not used, if True the series average per slice is first removed
         default is now False
     phase_filter_width : int
         Specifies the width of the smoothing filter for the phase.
