@@ -7,8 +7,7 @@ from nipype.pipeline import engine as pe
 
 from fmripost_phase import config
 from fmripost_phase.config import DEFAULT_MEMORY_MIN_GB
-from fmripost_phase.interfaces import DerivativesDataSink
-from fmripost_phase.interfaces.bids import BIDSURI
+from fmripost_phase.interfaces.bids import BIDSURI, DerivativesDataSink
 from fmripost_phase.utils.bids import dismiss_echo
 
 
