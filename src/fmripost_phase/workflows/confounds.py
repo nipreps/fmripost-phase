@@ -45,6 +45,7 @@ def init_bold_confs_wf(
 
     XXX: What about tissue time series from the jolt and/or jump files?
     """
+    from bids.utils import listify
     from fmriprep.interfaces.confounds import FilterDropped
     from fmriprep.utils.bids import dismiss_echo
     from nipype.interfaces import utility as niu
@@ -176,7 +177,7 @@ def init_bold_confs_wf(
         (highcor, outputnode, [('high_variance_masks', 'highcor_mask')]),
         (highcor, rois_plot, [('high_variance_masks', 'in_rois')]),
         (rois_plot, ds_report_bold_rois, [('out_report', 'in_file')]),
-        (highcor, compcor_plot, [('metadata_file', 'metadata_files')]),
+        (highcor, compcor_plot, [(('metadata_file', listify), 'metadata_files')]),
         (compcor_plot, ds_report_compcor, [('out_file', 'in_file')]),
     ])  # fmt:skip
 
