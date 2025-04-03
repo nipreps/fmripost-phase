@@ -74,6 +74,13 @@
                 "mode": "image",
                 "suffix": "xfm",
                 "extension": ".txt"
+            },
+            "anat2outputspaces_xfm": {
+                "datatype": "anat",
+                "from": ["anat", "T1w", "T2w"],
+                "mode": "image",
+                "suffix": "xfm",
+                "extension": ".h5"
             }
         }
     },

@@ -173,7 +173,7 @@ def collect_derivatives(
         spaces_found, anat2outputspaces_xfm = [], []
         for space in spaces.references:
             # First try to find processed BOLD+mask files in the requested space
-            anat2space_query = {**entities, **spec['transforms']['anat2mni152nlin6asym']}
+            anat2space_query = {**entities, **spec['transforms']['anat2outputspaces_xfm']}
             anat2space_query['to'] = space.space
             item = layout.get(return_type='filename', **anat2space_query)
             anat2outputspaces_xfm.append(item[0] if item else None)
