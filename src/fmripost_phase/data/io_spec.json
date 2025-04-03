@@ -3,7 +3,6 @@
         "raw": {
             "magnitude_raw": {
                 "datatype": "func",
-                "echo": null,
                 "part": "mag",
                 "suffix": "bold",
                 "extension": [
@@ -13,7 +12,6 @@
             },
             "phase_raw": {
                 "datatype": "func",
-                "echo": null,
                 "part": "phase",
                 "suffix": "bold",
                 "extension": [
@@ -23,7 +21,6 @@
             },
             "magnitude_norf": {
                 "datatype": "func",
-                "echo": null,
                 "part": "mag",
                 "suffix": "noRF",
                 "extension": [
@@ -33,7 +30,6 @@
             },
             "phase_norf": {
                 "datatype": "func",
-                "echo": null,
                 "part": "phase",
                 "suffix": "noRF",
                 "extension": [

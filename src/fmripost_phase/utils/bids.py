@@ -229,6 +229,8 @@ def collect_derivatives(
         for k, q in spec['raw'].items():
             # Combine entities with query. Query values override file entities.
             query = {**entities, **q}
+            print(k)
+            print(query)
             item = raw_layout.get(return_type='filename', **query)
             if not item:
                 derivs_cache[k] = None
