@@ -119,7 +119,8 @@ def generate_reports(
             # Beyond a certain number of sessions per subject,
             # we separate the functional reports per session
             if session_list is None:
-                filters = config.execution.bids_filters or {}
+                all_filters = config.execution.bids_filters or {}
+                filters = all_filters.get('bold', {})
                 session_list = config.execution.layout.get_sessions(
                     subject=subject_label, **filters
                 )

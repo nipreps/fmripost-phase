@@ -179,7 +179,7 @@ It is released under the [CC0]\
     subject_data = collect_derivatives(
         raw_dataset=config.execution.layout,
         derivatives_dataset=None,
-        entities=config.execution.bids_filters,
+        entities=None,
         fieldmap_id=None,
         allow_multiple=True,
         spaces=None,
@@ -346,8 +346,7 @@ def init_single_run_wf(bold_file):
     mem_gb = estimate_bold_mem_usage(bold_file)[1]
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
-    entities = config.execution.bids_filters or {}
-    entities = {**entities, **extract_entities(bold_file)}
+    entities = extract_entities(bold_file)
 
     # Attempt to extract the associated fmap ID
     fmapid = None
