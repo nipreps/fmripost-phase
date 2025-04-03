@@ -400,7 +400,7 @@ def init_single_run_wf(bold_file):
         )
 
     print(functional_cache)
-    if not functional_cache['confounds']:
+    if not functional_cache['bold_confounds']:
         if config.workflow.dummy_scans is None:
             raise ValueError(
                 'No confounds detected. '
@@ -421,13 +421,13 @@ def init_single_run_wf(bold_file):
     if config.workflow.dummy_scans is not None:
         skip_vols = config.workflow.dummy_scans
     else:
-        if not functional_cache['confounds']:
+        if not functional_cache['bold_confounds']:
             raise ValueError(
                 'No confounds detected. '
                 'Automatical dummy scan detection cannot be performed. '
                 'Please set the `--dummy-scans` flag explicitly.'
             )
-        skip_vols = get_nss(functional_cache['confounds'])
+        skip_vols = get_nss(functional_cache['bold_confounds'])
 
     inputnode = pe.Node(
         niu.IdentityInterface(
