@@ -712,7 +712,7 @@ def init_single_run_wf(bold_file):
             metadata=bold_metadata,
         )
         workflow.connect([
-            (inputnode, phase_regression_wf, [('bold_mask_native', 'bold_mask')]),
+            (inputnode, phase_regression_wf, [('bold_mask_native', 'inputnode.bold_mask')]),
             (phase_boldref_wf, phase_regression_wf, [('outputnode.bold_file', 'inputnode.phase')]),
             (mag_boldref_wf, phase_regression_wf, [
                 ('outputnode.bold_file', 'inputnode.magnitude'),
@@ -757,7 +757,7 @@ def init_single_run_wf(bold_file):
     )
     bold_confounds_wf.inputs.inputnode.skip_vols = skip_vols
     workflow.connect([
-        (inputnode, bold_confounds_wf, [('bold_mask_native', 'bold_mask')]),
+        (inputnode, bold_confounds_wf, [('bold_mask_native', 'inputnode.bold_mask')]),
         (phase_boldref_wf, bold_confounds_wf, [('outputnode.bold_file', 'inputnode.phase')]),
     ])  # fmt:skip
 
@@ -826,9 +826,9 @@ def init_single_run_wf(bold_file):
         workflow.connect([
             (calc_jolt, native_buffer, [('out_file', 'jolt')]),
             (inputnode, jolt_boldref_wf, [
-                ('hmc', 'motion_xfm'),
-                ('boldref2fmap', 'boldref2fmap_xfm'),
-                ('bold_mask_native', 'bold_ref_file'),
+                ('hmc', 'inputnode.motion_xfm'),
+                ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask_native', 'inputnode.bold_ref_file'),
             ]),
             (calc_jolt, jolt_boldref_wf, [('out_file', 'inputnode.bold_file')]),
             (jolt_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'jolt')]),
@@ -853,9 +853,9 @@ def init_single_run_wf(bold_file):
         workflow.connect([
             (calc_jump, native_buffer, [('out_file', 'jump')]),
             (inputnode, jump_boldref_wf, [
-                ('hmc', 'motion_xfm'),
-                ('boldref2fmap', 'boldref2fmap_xfm'),
-                ('bold_mask_native', 'bold_ref_file'),
+                ('hmc', 'inputnode.motion_xfm'),
+                ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask_native', 'inputnode.bold_ref_file'),
             ]),
             (calc_jump, jump_boldref_wf, [('out_file', 'inputnode.bold_file')]),
             (jump_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'jump')]),
@@ -880,9 +880,9 @@ def init_single_run_wf(bold_file):
         workflow.connect([
             (calc_laplacian, native_buffer, [('out_file', 'laplacian')]),
             (inputnode, laplacian_boldref_wf, [
-                ('hmc', 'motion_xfm'),
-                ('boldref2fmap', 'boldref2fmap_xfm'),
-                ('bold_mask_native', 'bold_ref_file'),
+                ('hmc', 'inputnode.motion_xfm'),
+                ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                ('bold_mask_native', 'inputnode.bold_ref_file'),
             ]),
             (calc_laplacian, laplacian_boldref_wf, [('out_file', 'inputnode.bold_file')]),
             (laplacian_boldref_wf, boldref_buffer, [('outputnode.bold_file', 'laplacian')]),
@@ -932,8 +932,8 @@ def init_single_run_wf(bold_file):
         deriv_carpetplot_wf.inputs.inputnode.desc = boldref_derivative
         workflow.connect([
             (inputnode, deriv_carpetplot_wf, [
-                ('bold_mask_native', 'bold_mask'),
-                ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                ('bold_mask_native', 'inputnode.bold_mask'),
+                ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
                 ('mni2009c2anat_xfm', 'inputnode.std2anat_xfm'),
             ]),
             (boldref_buffer, deriv_carpetplot_wf, [(boldref_derivative, 'inputnode.bold')]),
@@ -970,10 +970,10 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, native_anat_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('bold_mask_native', 'bold_ref_file'),
-                    ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                    ('hmc', 'inputnode.motion_xfm'),
+                    ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                    ('bold_mask_native', 'inputnode.bold_ref_file'),
+                    ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
                 ]),
                 (native_buffer, native_anat_wf, [(native_derivative, 'inputnode.bold')]),
             ])  # fmt:skip
@@ -1002,9 +1002,9 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, boldref_anat_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('bold_mask_native', 'bold_ref_file'),
+                    ('hmc', 'inputnode.motion_xfm'),
+                    ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                    ('bold_mask_native', 'inputnode.bold_ref_file'),
                 ]),
             ])  # fmt:skip
 
@@ -1034,10 +1034,10 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, native_std_wf, [
-                    ('hmc', 'motion_xfm'),
-                    ('boldref2fmap', 'boldref2fmap_xfm'),
-                    ('bold_mask_native', 'bold_ref_file'),
-                    ('boldref2anat_xfm', 'boldref2anat_xfm'),
+                    ('hmc', 'inputnode.motion_xfm'),
+                    ('boldref2fmap', 'inputnode.boldref2fmap_xfm'),
+                    ('bold_mask_native', 'inputnode.bold_ref_file'),
+                    ('boldref2anat_xfm', 'inputnode.boldref2anat_xfm'),
                     ('std_t1w', 'inputnode.target_ref_file'),
                     ('std_mask', 'inputnode.target_mask'),
                     ('anat2std_xfm', 'inputnode.anat2std_xfm'),
@@ -1072,7 +1072,7 @@ def init_single_run_wf(bold_file):
             )
             workflow.connect([
                 (inputnode, boldref_std_wf, [
-                    ('bold_mask_native', 'bold_ref_file'),
+                    ('bold_mask_native', 'inputnode.bold_ref_file'),
                     ('std_t1w', 'inputnode.target_ref_file'),
                     ('std_mask', 'inputnode.target_mask'),
                     ('anat2std_xfm', 'inputnode.anat2std_xfm'),
