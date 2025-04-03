@@ -248,7 +248,7 @@ class ROMEOUnwrap(CommandLine):
     From the ROMEO documentation, for a single-echo fMRI file,
     we should use:
 
-    >>> romeo -p ph.nii -m mag.nii -k nomask -t epi -o outputdir
+    "romeo -p ph.nii -m mag.nii -k nomask -t epi -o outputdir"
     """
 
     _cmd = 'romeo'
