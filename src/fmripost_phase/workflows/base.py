@@ -908,7 +908,7 @@ def init_single_run_wf(bold_file):
             ]),
         ])  # fmt:skip
 
-    if config.workflow.unwrapped_phase:
+    if config.workflow.unwrap_phase:
         native_derivatives.append('unwrapped')
         boldref_derivatives.append('unwrapped')
         derivative_metadata['unwrapped'] = {
