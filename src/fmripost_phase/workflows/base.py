@@ -175,11 +175,15 @@ It is released under the [CC0]\
 """
 
     # Raw dataset + derivatives dataset
+    entities = {'bold': {'subject': subject_id}, 'anat': {'subject': subject_id}}
+    if config.execution.task_id:
+        entities['bold']['task'] = config.execution.task_id
+
     config.loggers.workflow.info('Raw+derivatives workflow mode enabled')
     subject_data = collect_derivatives(
         raw_dataset=config.execution.layout,
         derivatives_dataset=None,
-        entities=None,
+        entities=entities,
         fieldmap_id=None,
         allow_multiple=True,
         spaces=None,
@@ -347,6 +351,8 @@ def init_single_run_wf(bold_file):
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
     entities = {'bold': extract_entities(bold_file)}
+    if 'session' in entities['bold']:
+        entities['anat']['session'] = [entities['bold']['session'], None]
 
     # Attempt to extract the associated fmap ID
     fmapid = None
