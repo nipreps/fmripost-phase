@@ -327,6 +327,7 @@ def init_single_run_wf(bold_file):
     from fmripost_phase.interfaces.warpkit import ROMEOUnwrap, WarpkitUnwrap
     from fmripost_phase.utils.bids import collect_derivatives, extract_entities
     from fmripost_phase.workflows.confounds import init_bold_confs_wf, init_carpetplot_wf
+    from fmripost_phase.workflows.denoising import init_dwidenoise_wf, init_nordic_wf
     from fmripost_phase.workflows.regression import init_phase_regression_wf
 
     spaces = config.workflow.spaces
@@ -521,20 +522,28 @@ def init_single_run_wf(bold_file):
     )
     if config.workflow.thermal_denoise_method:
         # Run LLR denoising on the magnitude and phase data
-        denoise_wf = pe.Node(
-            niu.IdentityInterface(fields=['magnitude', 'phase', 'magnitude_norf', 'phase_norf']),
-            name='denoise_wf',
-        )
-        if has_norf:
-            validate_norf = pe.Node(
-                ValidateImage(),
-                name='validate_norf',
+        if config.workflow.thermal_denoise_method == 'nordic':
+            denoise_wf = init_nordic_wf(
+                mem_gb=mem_gb,
+                name='denoise_wf',
             )
-            workflow.connect([
-                (inputnode, validate_norf, [('magnitude_norf', 'in_file')]),
-                (validate_norf, denoise_wf, [('out_file', 'inputnode.magnitude_norf')]),
-                (phase_buffer, denoise_wf, [('phase_norf', 'inputnode.phase_norf')]),
-            ])  # fmt:skip
+            if has_norf:
+                # Only use noRF data for NORDIC
+                validate_norf = pe.Node(
+                    ValidateImage(),
+                    name='validate_norf',
+                )
+                workflow.connect([
+                    (inputnode, validate_norf, [('magnitude_norf', 'in_file')]),
+                    (validate_norf, denoise_wf, [('out_file', 'inputnode.magnitude_norf')]),
+                    (phase_buffer, denoise_wf, [('phase_norf', 'inputnode.phase_norf')]),
+                ])  # fmt:skip
+
+        elif config.workflow.thermal_denoise_method == 'dwidenoise':
+            denoise_wf = init_dwidenoise_wf(
+                mem_gb=mem_gb,
+                name='denoise_wf',
+            )
 
         workflow.connect([
             (validate_bold, denoise_wf, [('out_file', 'inputnode.magnitude')]),
@@ -673,6 +682,8 @@ def init_single_run_wf(bold_file):
         (unwrap_phase, phase_boldref_wf, [('unwrapped', 'inputnode.bold_file')]),
     ])  # fmt:skip
 
+    # XXX: Maybe move these derivatives to a separate workflow.
+    # I want the main
     if config.workflow.retroicor:
         # Run RETROICOR on the magnitude and phase data
         # After rescaling + unwrapping
@@ -694,8 +705,6 @@ def init_single_run_wf(bold_file):
         ])  # fmt:skip
 
     # Calculate phase jolt, jump, and/or laplacian files
-    # TODO: Apply transforms to jolt, jump, and laplacian files to target spaces
-    # TODO: Create figures for derivatives, including carpet plots and registration plots
     if config.workflow.jolt:
         # Calculate phase jolt
         calc_jolt = pe.Node(
