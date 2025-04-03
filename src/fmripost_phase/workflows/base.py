@@ -350,7 +350,7 @@ def init_single_run_wf(bold_file):
     mem_gb = estimate_bold_mem_usage(bold_file)[1]
     multiecho = isinstance(bold_file, list)  # XXX: This won't work
 
-    entities = {'bold': extract_entities(bold_file)}
+    entities = {'bold': extract_entities(bold_file), 'anat': {}}
     if 'session' in entities['bold']:
         entities['anat']['session'] = [entities['bold']['session'], None]
 
