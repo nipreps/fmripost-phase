@@ -1094,7 +1094,7 @@ def init_single_run_wf(bold_file):
                 (boldref_std_wf, ds_deriv_std, [('outputnode.bold_file', 'in_file')]),
             ])  # fmt:skip
 
-    if config.workflow.run_reconall and freesurfer_spaces:
+    if freesurfer_spaces:
         ...
 
     if config.workflow.cifti_output:
