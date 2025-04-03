@@ -49,6 +49,20 @@
                 "desc": "confounds",
                 "suffix": "timeseries",
                 "extension": ".tsv"
+            },
+            "bold_mask_native": {
+                "datatype": "func",
+                "echo": null,
+                "part": null,
+                "space": null,
+                "res": null,
+                "den": null,
+                "desc": "brain",
+                "suffix": "mask",
+                "extension": [
+                    ".nii.gz",
+                    ".nii"
+                ]
             }
         },
         "transforms": {
