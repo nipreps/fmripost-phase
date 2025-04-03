@@ -184,7 +184,7 @@ It is released under the [CC0]\
         allow_multiple=True,
         spaces=None,
     )
-    subject_data['bold'] = listify(subject_data['magnitude_raw'])
+    subject_data['bold'] = listify(subject_data['bold_magnitude_raw'])
 
     config.loggers.workflow.info(
         f'Collected subject data:\n{yaml.dump(subject_data, default_flow_style=False, indent=4)}',
@@ -448,14 +448,14 @@ def init_single_run_wf(bold_file):
         ),
         name='inputnode',
     )
-    inputnode.inputs.magnitude_raw = functional_cache['magnitude_raw']
-    inputnode.inputs.phase_raw = functional_cache['phase_raw']
-    inputnode.inputs.magnitude_norf = functional_cache['magnitude_norf']
-    inputnode.inputs.phase_norf = functional_cache['phase_norf']
-    inputnode.inputs.hmc = functional_cache['hmc']
+    inputnode.inputs.magnitude_raw = functional_cache['bold_magnitude_raw']
+    inputnode.inputs.phase_raw = functional_cache['bold_phase_raw']
+    inputnode.inputs.magnitude_norf = functional_cache['bold_magnitude_norf']
+    inputnode.inputs.phase_norf = functional_cache['bold_phase_norf']
+    inputnode.inputs.hmc = functional_cache['bold_hmc']
     inputnode.inputs.boldref2fmap = functional_cache['boldref2fmap']
     inputnode.inputs.bold_mask_native = functional_cache['bold_mask_native']
-    inputnode.inputs.confounds = functional_cache['confounds']
+    inputnode.inputs.confounds = functional_cache['bold_confounds']
     # Field maps
     inputnode.inputs.fmap = functional_cache['fmap']
 
